@@ -27,4 +27,11 @@ urlpatterns = [
     path("route-contribution/", views.submit_route_contribution, name="submit_route_contribution"),
     path("contribution-image/<str:filename>/", views.serve_contribution_image, name="serve_contribution_image"),
     path("admin/", views.team13_admin_dashboard, name="team13_admin_dashboard"),
+    path("admin-panel/", views.team13_admin_dashboard, name="team13_admin_panel"),
+    path("admin/approve/<uuid:contribution_id>/", views.team13_admin_approve, name="team13_admin_approve"),
+    path("admin/reject/<uuid:contribution_id>/", views.team13_admin_reject, name="team13_admin_reject"),
+    path("admin/approve-route/<uuid:contribution_id>/", views.team13_admin_approve_route, name="team13_admin_approve_route"),
+    path("admin/reject-route/<uuid:contribution_id>/", views.team13_admin_reject_route, name="team13_admin_reject_route"),
+    path("admin/approve-comment/<uuid:comment_id>/", views.team13_admin_approve_comment, name="team13_admin_approve_comment"),
+    path("admin/reject-comment/<uuid:comment_id>/", views.team13_admin_reject_comment, name="team13_admin_reject_comment"),
 ]
