@@ -272,3 +272,28 @@ function decodeRouteGeometry(routeGeometry) {
     return null;
   }
 }
+
+
+function drawStraightRouteLine(map, startLat, startLng, destLat, destLng, routeGeometry) {
+  if (!map || typeof L === 'undefined') return;
+  let linePoints = null;
+  if (routeGeometry) linePoints = decodeRouteGeometry(routeGeometry);
+  if (!linePoints || linePoints.length === 0) linePoints = [[startLat, startLng], [destLat, destLng]];
+  if (window.currentPath && map) map.removeLayer(window.currentPath);
+  if (window.routeLayer && map) map.removeLayer(window.routeLayer);
+  if (window.currentRoute && map) map.removeLayer(window.currentRoute);
+  if (window.team13RouteLine && map) map.removeLayer(window.team13RouteLine);
+  const routePane = map.getPane && map.getPane('team13-route-pane') ? 'team13-route-pane' : 'overlayPane';
+  window.currentPath = L.polyline(linePoints, {
+    color: '#40916c',
+    weight: 6,
+    opacity: 1,
+    pane: routePane,
+  }).addTo(map);
+  if (window.currentPath.bringToFront) window.currentPath.bringToFront();
+  window.routeLayer = window.currentPath;
+  window.currentRoute = window.currentPath;
+  window.team13RouteLine = window.currentPath;
+  map.fitBounds(window.currentPath.getBounds(), { padding: [40, 40] });
+}
+
