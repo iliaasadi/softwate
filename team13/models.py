@@ -273,3 +273,37 @@ class RouteContribution(models.Model):
     def __str__(self):
         return f"{self.source_address[:30]} → {self.destination_address[:30]} ({self.get_travel_mode_display()})"
 
+
+class PlaceContribution(models.Model):
+    """پیشنهاد مکان توسط کاربر؛ پس از تأیید به Place تبدیل می‌شود."""
+
+    contribution_id = models.UUIDField(
+        primary_key=True, default=uuid.uuid4, editable=False, db_column="contribution_id"
+    )
+    name_fa = models.CharField(max_length=255)
+    name_en = models.CharField(max_length=255, blank=True)
+    type = models.CharField(max_length=32, choices=Place.PlaceType.choices)
+    address = models.TextField(blank=True)
+    latitude = models.FloatField()
+    longitude = models.FloatField()
+    city = models.CharField(max_length=255, blank=True)
+    submitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="team13_place_contributions",
+        db_column="submitted_by_id",
+        db_constraint=False,
+    )
+    is_approved = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        app_label = "team13"
+        db_table = "team13_place_contributions"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.name_fa} ({self.contribution_id})"
+    
