@@ -57,3 +57,42 @@ class PlaceTranslation(models.Model):
     def __str__(self):
         return f"{self.place_id} ({self.lang})"
 
+
+class Event(models.Model):
+    """رویداد: تاریخ و مکان رویداد."""
+
+    event_id = models.UUIDField(
+        primary_key=True, default=uuid.uuid4, editable=False, db_column="event_id"
+    )
+    start_at = models.DateTimeField()
+    end_at = models.DateTimeField()
+    city = models.CharField(max_length=255, blank=True)
+    address = models.TextField(blank=True)
+    latitude = models.FloatField()
+    longitude = models.FloatField()
+
+    class Meta:
+        app_label = "team13"
+        db_table = "team13_events"
+
+    def __str__(self):
+        return f"Event {self.event_id} — {self.city or 'بدون شهر'}"
+
+
+class EventTranslation(models.Model):
+    """ترجمه عنوان و توضیح رویداد."""
+
+    event = models.ForeignKey(
+        Event, on_delete=models.CASCADE, related_name="translations", db_column="event_id"
+    )
+    lang = models.CharField(max_length=2, choices=[("fa", "فارسی"), ("en", "English")])
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+
+    class Meta:
+        app_label = "team13"
+        db_table = "team13_event_translations"
+        unique_together = [("event", "lang")]
+
+    def __str__(self):
+        return f"{self.event_id} ({self.lang})"
