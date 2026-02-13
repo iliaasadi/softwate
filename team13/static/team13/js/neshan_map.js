@@ -344,4 +344,179 @@
     return layerRef;
   }
 
-})
+  // --- L.circle (دایرهٔ شعاع بر حسب متر؛ تقریب با چندضلعی در Mapbox) ---
+  function createCircle(center, opts) {
+    opts = opts || {};
+    var lat = Array.isArray(center) ? center[0] : center.lat;
+    var lng = Array.isArray(center) ? center[1] : center.lng;
+    var radiusM = opts.radius || 1000;
+    var points = 64;
+    var coords = [];
+    for (var i = 0; i <= points; i++) {
+      var angle = (i / points) * 2 * Math.PI;
+      var dy = (radiusM / 111320) * Math.cos(angle);
+      var dx = (radiusM / (111320 * Math.cos(lat * Math.PI / 180))) * Math.sin(angle);
+      coords.push([lng + dx, lat + dy]);
+    }
+    var id = 'team13-circle-' + Date.now();
+    rawMap.addSource(id, {
+      type: 'geojson',
+      data: { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [coords] } }
+    });
+    rawMap.addLayer({
+      id: id + '-fill',
+      type: 'fill',
+      source: id,
+      paint: {
+        'fill-color': opts.fillColor || '#40916c',
+        'fill-opacity': opts.fillOpacity != null ? opts.fillOpacity : 0.12
+      }
+    });
+    rawMap.addLayer({
+      id: id + '-line',
+      type: 'line',
+      source: id,
+      paint: {
+        'line-color': opts.color || '#40916c',
+        'line-width': opts.weight || 2
+      }
+    });
+    return {
+      _circleIds: [id + '-fill', id + '-line', id],
+      _onMap: true,
+      addTo: function () { return this; },
+      remove: function () {
+        var ids = this._circleIds;
+        if (ids[0] && rawMap.getLayer(ids[0])) rawMap.removeLayer(ids[0]);
+        if (ids[1] && rawMap.getLayer(ids[1])) rawMap.removeLayer(ids[1]);
+        if (ids[2] && rawMap.getSource(ids[2])) rawMap.removeSource(ids[2]);
+        this._onMap = false;
+      }
+    };
+  }
+
+  // --- L.layerGroup (برای گروه مارکرها در map_data؛ مارکرها با createMarker خودشان addTo(rawMap) می‌شوند) ---
+  function createLayerGroup() {
+    var layers = [];
+    return {
+      _layers: layers,
+      addTo: function (map) { return this; },
+      addLayer: function (layer) {
+        layers.push(layer);
+        return this;
+      },
+      remove: function () {
+        layers.forEach(function (l) {
+          if (l && typeof l.remove === 'function') l.remove();
+        });
+        layers.length = 0;
+      },
+      clearLayers: function () {
+        this.remove();
+      },
+      getBounds: function () {
+        var minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+        layers.forEach(function (l) {
+          var ll = l && l.getLatLng && l.getLatLng();
+          if (ll && ll.lat != null && ll.lng != null) {
+            if (ll.lat < minLat) minLat = ll.lat;
+            if (ll.lat > maxLat) maxLat = ll.lat;
+            if (ll.lng < minLng) minLng = ll.lng;
+            if (ll.lng > maxLng) maxLng = ll.lng;
+          }
+        });
+        if (minLat === Infinity) return null;
+        return {
+          getSouthWest: function () { return { lat: minLat, lng: minLng }; },
+          getNorthEast: function () { return { lat: maxLat, lng: maxLng }; }
+        };
+      },
+      eachLayer: function (fn) {
+        layers.forEach(fn);
+      }
+    };
+  }
+
+  // --- L.popup (پشتیبانی از setContent(DOM) و getElement برای popupopen) ---
+  function createPopup(opts) {
+    opts = opts || {};
+    var popup = new nmp_mapboxgl.Popup({ className: opts.className || '', offset: 25 });
+    var self = {
+      setLatLng: function (latlng) {
+        var lat = Array.isArray(latlng) ? latlng[0] : latlng.lat;
+        var lng = Array.isArray(latlng) ? latlng[1] : latlng.lng;
+        this._lngLat = [lng, lat];
+        return this;
+      },
+      setContent: function (htmlOrEl) {
+        this._content = htmlOrEl;
+        return this;
+      },
+      getElement: function () {
+        return (typeof popup.getElement === 'function' && popup.getElement()) || null;
+      },
+      openOn: function (mapRef) {
+        if (!this._lngLat) return this;
+        popup.setLngLat(this._lngLat);
+        if (this._content instanceof window.HTMLElement) {
+          if (typeof popup.setDOMContent === 'function') popup.setDOMContent(this._content);
+          else popup.setHTML(this._content.innerHTML);
+        } else if (this._content) {
+          popup.setHTML(typeof this._content === 'string' ? this._content : String(this._content));
+        }
+        popup.addTo(rawMap);
+        var wrapper = window.team13MapInstance;
+        if (wrapper && typeof wrapper._firePopupOpen === 'function') wrapper._firePopupOpen(self);
+        return this;
+      }
+    };
+    return self;
+  }
+
+  // --- L.divIcon برای مارکرهای سفارشی ---
+  function createDivIcon(options) {
+    return { options: options || {} };
+  }
+
+  // --- L.tileLayer بدون‌عمل (نقشهٔ نشان تایل خودش را دارد) ---
+  function tileLayer() {
+    return { addTo: function () { return this; } };
+  }
+
+  // --- L.DomEvent ---
+  var DomEvent = {
+    on: function (el, type, fn) {
+      if (el && el.addEventListener) el.addEventListener(type, fn);
+    },
+    stopPropagation: function (e) {
+      if (e && e.stopPropagation) e.stopPropagation();
+    }
+  };
+
+  // --- L.map: برگرداندن wrapper نقشه ---
+  function map(containerId) {
+    return mapWrapper;
+  }
+
+  window.L = {
+    map: map,
+    marker: createMarker,
+    polyline: createPolyline,
+    circle: createCircle,
+    popup: function (opts) { return createPopup(opts || {}); },
+    divIcon: createDivIcon,
+    tileLayer: tileLayer,
+    layerGroup: createLayerGroup,
+    DomEvent: DomEvent,
+    Icon: { Default: {} },
+    point: function (x, y) { return { x: x, y: y }; }
+  };
+
+  window.team13MapInstance = mapWrapper;
+  window.team13NeshanMap = rawMap;
+
+  rawMap.on('load', function () {
+    if (typeof window.team13MapDataReady === 'function') window.team13MapDataReady();
+  });
+})();
+
