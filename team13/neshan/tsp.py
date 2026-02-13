@@ -39,3 +39,23 @@ def fetch_tsp(waypoints, round_trip=True, source_is_any_point=True, last_is_any_
         if len(parts) < 2:
             return None
         waypoints_str = "|".join(parts)
+    try:
+        import requests
+        url = f"{NESHAN_API_BASE.rstrip('/')}{NESHAN_TSP_PATH}"
+        params = {"waypoints": waypoints_str}
+        if round_trip is not None:
+            params["roundTrip"] = "true" if round_trip else "false"
+        if source_is_any_point is not None:
+            params["sourceIsAnyPoint"] = "true" if source_is_any_point else "false"
+        if last_is_any_point is not None:
+            params["lastIsAnyPoint"] = "true" if last_is_any_point else "false"
+        headers = {"Api-Key": api_key}
+        resp = requests.get(url, params=params, headers=headers, timeout=15)
+        if resp.status_code != 200:
+            logger.debug("Neshan TSP HTTP %s: %s", resp.status_code, resp.text[:200])
+            return None
+        data = resp.json()
+        return data.get("points")
+    except Exception as e:
+        logger.debug("Neshan TSP failed: %s", e)
+        return None
