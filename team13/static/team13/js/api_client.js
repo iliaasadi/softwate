@@ -204,3 +204,26 @@ const api = {
     return postJson('map-matching/', { path: pathStr });
   },
 };
+
+
+
+/**
+ * Load places and events from backend for map and sidebar.
+ * GET requests; no CSRF required.
+ * @returns {Promise<{ places: Array, events: Array }>}
+ */
+async function loadMapData() {
+  const baseUrl = window.location.origin + (API_BASE || '/team13');
+  const [placesRes, eventsRes] = await Promise.all([
+    fetch(`${baseUrl}/places/?format=json`, { method: 'GET', headers: { Accept: 'application/json' }, credentials: 'same-origin' }),
+    fetch(`${baseUrl}/events/?format=json`, { method: 'GET', headers: { Accept: 'application/json' }, credentials: 'same-origin' }),
+  ]);
+  if (!placesRes.ok) throw new Error('Places fetch failed: ' + placesRes.status);
+  if (!eventsRes.ok) throw new Error('Events fetch failed: ' + eventsRes.status);
+  const placesData = await placesRes.json();
+  const eventsData = await eventsRes.json();
+  return {
+    places: placesData.places || [],
+    events: eventsData.events || [],
+  };
+}
