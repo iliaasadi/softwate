@@ -71,3 +71,24 @@ async function postRating(url, data) {
     credentials: 'same-origin',
   });
 }
+
+
+/**
+ * POST JSON to an endpoint (e.g. map-matching). Sends CSRF via header.
+ */
+async function postJson(endpoint, data) {
+  const csrf = getCsrfToken();
+  const fullUrl = endpoint.startsWith('http') ? endpoint : API_BASE + '/' + (endpoint || '').replace(/^\//, '');
+  const res = await fetch(fullUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrf || '',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(data),
+    credentials: 'same-origin',
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + res.statusText);
+  return res.json();
+}
