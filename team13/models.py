@@ -307,3 +307,14 @@ class PlaceContribution(models.Model):
     def __str__(self):
         return f"{self.name_fa} ({self.contribution_id})"
     
+    class TeamAdmin(models.Model):
+        """کاربران مجاز به عنوان ادمین تیم ۱۳ (شناسه کاربر از دیتابیس default، بدون FK برای جلوگیری از خطای cross-DB)."""
+
+    user_id = models.CharField(max_length=64, unique=True, db_index=True, db_column="user_id", null=True, blank=True)
+
+    class Meta:
+        app_label = "team13"
+        db_table = "team13_team_admins"
+
+    def __str__(self):
+        return str(self.user_id)
