@@ -215,3 +215,61 @@ class PlaceAmenity(models.Model):
     def __str__(self):
         return f"{self.place_id} — {self.amenity_name}"
     
+    class RouteLog(models.Model):
+    """ثبت سفر/مسیر کاربر (مبدأ، مقصد، نوع حمل‌ونقل)."""
+
+    class TravelMode(models.TextChoices):
+        CAR = "car", "خودرو"
+        WALK = "walk", "پیاده"
+        TRANSIT = "transit", "حمل‌ونقل عمومی"
+
+    # user در core و در دیتابیس دیگر است؛ فقط شناسه ذخیره می‌شود
+    user_id = models.UUIDField(null=True, blank=True, db_index=True)
+    source_place = models.ForeignKey(
+        Place, on_delete=models.CASCADE, related_name="routes_from", db_column="source_place_id"
+    )
+    destination_place = models.ForeignKey(
+        Place, on_delete=models.CASCADE, related_name="routes_to", db_column="destination_place_id"
+    )
+    travel_mode = models.CharField(max_length=16, choices=TravelMode.choices)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        app_label = "team13"
+        db_table = "team13_route_logs"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.source_place_id} → {self.destination_place_id} ({self.travel_mode})"
+
+
+class RouteContribution(models.Model):
+    """پیشنهاد مسیر توسط کاربر؛ پس از تأیید ادمین، دو مکان و یک RouteLog ساخته می‌شود."""
+
+    class TravelMode(models.TextChoices):
+        CAR = "car", "خودرو"
+        WALK = "walk", "پیاده"
+        TRANSIT = "transit", "حمل‌ونقل عمومی"
+
+    contribution_id = models.UUIDField(
+        primary_key=True, default=uuid.uuid4, editable=False, db_column="contribution_id"
+    )
+    source_address = models.TextField(help_text="آدرس مبدأ (از روی عرض/طول ثابت شده)")
+    source_latitude = models.FloatField()
+    source_longitude = models.FloatField()
+    destination_address = models.TextField(help_text="آدرس مقصد (از روی عرض/طول ثابت شده)")
+    destination_latitude = models.FloatField()
+    destination_longitude = models.FloatField()
+    travel_mode = models.CharField(max_length=16, choices=TravelMode.choices, default=TravelMode.CAR)
+    user_id = models.UUIDField(null=True, blank=True, db_index=True)
+    is_approved = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        app_label = "team13"
+        db_table = "team13_route_contributions"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.source_address[:30]} → {self.destination_address[:30]} ({self.get_travel_mode_display()})"
+
