@@ -181,4 +181,167 @@
 
   var mapWrapper = wrapMap(rawMap);
 
+  // --- L.marker با پشتیبانی از divIcon، draggable و پاپ‌آپ (مطابق مارکر سفارشی نشان) ---
+  // مستندات: https://platform.neshan.org/docs/sdk/web/mapboxgl/examples/neshan-mapbox-custom-marker/
+  function createMarker(latlng, opts) {
+    opts = opts || {};
+    var lat = Array.isArray(latlng) ? latlng[0] : latlng.lat;
+    var lng = Array.isArray(latlng) ? latlng[1] : latlng.lng;
+    var icon = opts.icon || null;
+    var draggable = opts.draggable === true;
+    var markerColor = opts.color || '#40916c';
+    var el;
+    if (icon && icon.options && icon.options.html) {
+      el = document.createElement('div');
+      el.innerHTML = icon.options.html;
+      el.className = (icon.options.className || '') + ' team13-neshan-marker';
+      el.style.width = (icon.options.iconSize && icon.options.iconSize[0]) + 'px' || '32px';
+      el.style.height = (icon.options.iconSize && icon.options.iconSize[1]) + 'px' || '32px';
+      el.style.cursor = 'pointer';
+    } else {
+      el = document.createElement('div');
+      el.className = 'team13-neshan-marker-default';
+      el.style.width = '24px'; el.style.height = '24px';
+      el.style.background = markerColor; el.style.borderRadius = '50%';
+      el.style.border = '2px solid #1b4332';
+      el.style.cursor = draggable ? 'move' : 'pointer';
+    }
+    var marker = new nmp_mapboxgl.Marker({ element: el, draggable: draggable }).setLngLat([lng, lat]);
+    var popupInstance = null;
+    el.addEventListener('click', function (ev) {
+      if (ev && ev.stopPropagation) ev.stopPropagation();
+      if (ev && ev.preventDefault) ev.preventDefault();
+      if (popupInstance && typeof marker.togglePopup === 'function') marker.togglePopup();
+    });
+    var wrapper = {
+      _marker: marker,
+      _onMap: false,
+      bindPopup: function (content) {
+        popupInstance = new nmp_mapboxgl.Popup({ offset: 25 });
+        if (content instanceof window.HTMLElement) {
+          if (typeof popupInstance.setDOMContent === 'function') popupInstance.setDOMContent(content);
+          else popupInstance.setHTML(content.innerHTML || '');
+        } else {
+          popupInstance.setHTML(typeof content === 'string' ? content : '');
+        }
+        if (typeof popupInstance.on === 'function') {
+          popupInstance.on('open', function () {
+            if (wrapper._popupopen) wrapper._popupopen();
+            if (mapWrapper && typeof mapWrapper._firePopupOpen === 'function') mapWrapper._firePopupOpen(wrapper.getPopup());
+          });
+        }
+        marker.setPopup(popupInstance);
+        return this;
+      },
+      getPopup: function () {
+        if (!popupInstance) return null;
+        return {
+          getElement: function () {
+            return (typeof popupInstance.getElement === 'function' && popupInstance.getElement()) || null;
+          },
+          setContent: function (c) {
+            if (c instanceof window.HTMLElement) {
+              if (typeof popupInstance.setDOMContent === 'function') popupInstance.setDOMContent(c);
+              else popupInstance.setHTML(c.innerHTML);
+            } else {
+              popupInstance.setHTML(typeof c === 'string' ? c : '');
+            }
+          }
+        };
+      },
+      togglePopup: function () {
+        if (marker && typeof marker.togglePopup === 'function') marker.togglePopup();
+        return this;
+      },
+      openPopup: function () {
+        if (marker && typeof marker.togglePopup === 'function') marker.togglePopup();
+        return this;
+      },
+      on: function (ev, fn) {
+        if (ev === 'popupopen') this._popupopen = fn;
+        if (ev === 'dragend') {
+          this._dragend = fn;
+          if (typeof marker.on === 'function') {
+            marker.on('dragend', function () {
+              var lngLat = marker.getLngLat();
+              if (lngLat) { lat = lngLat.lat; lng = lngLat.lng; }
+              if (wrapper._dragend) wrapper._dragend();
+            });
+          }
+        }
+        return this;
+      },
+      addTo: function (mapRef) {
+        if (!this._onMap && this._marker && typeof this._marker.addTo === 'function') {
+          this._marker.addTo(rawMap);
+          this._onMap = true;
+        }
+        return this;
+      },
+      getLatLng: function () { return { lat: lat, lng: lng }; },
+      setLatLng: function (ll) {
+        var la = Array.isArray(ll) ? ll[0] : ll.lat;
+        var ln = Array.isArray(ll) ? ll[1] : ll.lng;
+        lat = la; lng = ln;
+        marker.setLngLat([ln, la]);
+        return this;
+      },
+      remove: function () {
+        if (this._marker && typeof this._marker.remove === 'function') this._marker.remove();
+        this._onMap = false;
+      }
+    };
+    return wrapper;
+  }
+
+  // --- L.polyline برای رسم مسیر ---
+  function createPolyline(latlngs, opts) {
+    opts = opts || {};
+    var id = routeSourceId + '-' + Date.now();
+    var coords = latlngs.map(function (p) {
+      var lat = Array.isArray(p) ? p[0] : p.lat;
+      var lng = Array.isArray(p) ? p[1] : p.lng;
+      return [lng, lat];
+    });
+    rawMap.addSource(id, {
+      type: 'geojson',
+      data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: coords } }
+    });
+    rawMap.addLayer({
+      id: id + '-layer',
+      type: 'line',
+      source: id,
+      layout: { 'line-join': 'round', 'line-cap': 'round' },
+      paint: {
+        'line-color': opts.color || '#40916c',
+        'line-width': opts.weight || 6,
+        'line-opacity': opts.opacity != null ? opts.opacity : 1
+      }
+    });
+    var layerRef = {
+      _layerId: id + '-layer',
+      _sourceId: id,
+      remove: function () {
+        if (rawMap.getLayer(this._layerId)) rawMap.removeLayer(this._layerId);
+        if (rawMap.getSource(this._sourceId)) rawMap.removeSource(this._sourceId);
+      },
+      addTo: function () { return this; },
+      getBounds: function () {
+        var minLng = coords[0][0], maxLng = coords[0][0], minLat = coords[0][1], maxLat = coords[0][1];
+        coords.forEach(function (c) {
+          if (c[0] < minLng) minLng = c[0];
+          if (c[0] > maxLng) maxLng = c[0];
+          if (c[1] < minLat) minLat = c[1];
+          if (c[1] > maxLat) maxLat = c[1];
+        });
+        return {
+          getSouthWest: function () { return { lat: minLat, lng: minLng }; },
+          getNorthEast: function () { return { lat: maxLat, lng: maxLng }; }
+        };
+      },
+      bringToFront: function () {}
+    };
+    return layerRef;
+  }
+
 })
