@@ -1,0 +1,4 @@
+# Optional deps for team13 (facilities and transport). Main deps in root requirements.txt.
+# For load scripts and optional CORE_BASE_URL in core_auth.py
+requests>=2.28.0
+Pillow>=10.0.0

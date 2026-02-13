@@ -1,0 +1,24 @@
+# env
+.env
+.env.*
+!.env.example
+
+# python
+__pycache__/
+*.py[cod]
+*.log
+*.sqlite3
+db.sqlite3
+
+# venv
+.venv/
+venv/
+
+# static/media (if you add later)
+staticfiles/
+media/
+
+# node / frontend later
+node_modules/
+dist/
+build/
