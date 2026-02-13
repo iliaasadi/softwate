@@ -1,4 +1,7 @@
-# Optional deps for team13 (facilities and transport). Main deps in root requirements.txt.
-# For load scripts and optional CORE_BASE_URL in core_auth.py
+# وابستگی‌های اختیاری/تکمیلی برای سرویس team13 (امکانات و حمل‌ونقل)
+# وابستگی‌های اصلی پروژه در requirements.txt ریشه نصب شوند.
+
+# برای اسکریپت‌های بارگذاری داده (get_data/run.py، load_iran_location.py)
+# و فراخوانی اختیاری CORE_BASE_URL در core_auth.py
 requests>=2.28.0
 Pillow>=10.0.0

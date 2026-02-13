@@ -16,7 +16,7 @@ from django.db.models.functions import Coalesce
 from django.views.decorators.http import require_GET, require_POST
 from core.auth import api_login_required
 
-from .core_auth import get_current_user_info
+from .context_processors import team13_user_context
 from .neshan.config import get_web_key
 from .models import (
     Place,
@@ -37,20 +37,6 @@ CONTRIBUTION_UPLOAD_DIR = Path(__file__).resolve().parent / "contribution_upload
 TEAM_NAME = "team13"
 TEAM13_DB = "team13"  # همهٔ خواندن/نوشتن مکان، رویداد، نظر و ... از دیتابیس SQLite تیم ۱۳
 
-# Project login is at /auth/; Django's default LOGIN_URL is /accounts/login/, so use our own.
-TEAM13_LOGIN_URL = getattr(settings, "TEAM13_LOGIN_URL", "/auth/")
-
-
-def _team13_render_context(request, **extra):
-    """Context for team13 HTML templates: team13_user and NESHAN_MAP_KEY so login state shows (no app404 context processor)."""
-    ctx = {"team13_user": get_current_user_info(request)}
-    try:
-        ctx["NESHAN_MAP_KEY"] = get_web_key() or ""
-    except Exception:
-        ctx["NESHAN_MAP_KEY"] = ""
-    ctx.update(extra)
-    return ctx
-
 
 def _wants_json(request):
     """درخواست خروجی JSON (API) دارد یا نه."""
@@ -69,7 +55,7 @@ def _login_required_team13(view_func):
             return view_func(request, *args, **kwargs)
         if _wants_json(request):
             return JsonResponse({"detail": "Authentication required"}, status=401)
-        login_url = TEAM13_LOGIN_URL
+        login_url = getattr(settings, "LOGIN_URL", "/auth/")
         next_url = request.POST.get("next") or request.GET.get("next") or request.META.get("HTTP_REFERER") or "/team13/"
         if next_url and not url_has_allowed_host_and_scheme(next_url, allowed_hosts=request.get_host(), require_https=request.is_secure()):
             next_url = "/team13/"
@@ -92,17 +78,21 @@ def _distance_km(lat1, lon1, lat2, lon2):
     return R * c
 
 
+def _team13_context(request, extra=None):
+    """یکپارچه: context مشترک همهٔ صفحات team13 (وضعیت کاربر + کلید نقشه)."""
+    ctx = team13_user_context(request)
+    if extra:
+        ctx.update(extra)
+    return ctx
+
+
 @api_login_required
 def ping(request):
     return JsonResponse({"team": TEAM_NAME, "ok": True})
 
 
 def base(request):
-    return render(
-        request,
-        f"{TEAM_NAME}/index.html",
-        _team13_render_context(request),
-    )
+    return render(request, f"{TEAM_NAME}/index.html", _team13_context(request))
 
 
 # -----------------------------------------------------------------------------
@@ -288,7 +278,17 @@ def place_list(request):
             payload["has_more"] = (start + len(places_qs)) < total_count
         return JsonResponse(payload)
 
-    return render(request, f"{TEAM_NAME}/places_list.html", _team13_render_context(request, places=places, filter_type=place_type or "", filter_city=city or "", filter_min_rating=request.GET.get("min_rating") or "", filter_price_level=request.GET.get("price_level") or "", filter_max_distance=request.GET.get("max_distance") or "", current_lat=user_lat, current_lng=user_lng, is_team13_admin=is_team13_admin(request.user)))
+    return render(request, f"{TEAM_NAME}/places_list.html", _team13_context(request, {
+        "places": places,
+        "filter_type": place_type or "",
+        "filter_city": city or "",
+        "filter_min_rating": request.GET.get("min_rating") or "",
+        "filter_price_level": request.GET.get("price_level") or "",
+        "filter_max_distance": request.GET.get("max_distance") or "",
+        "current_lat": user_lat,
+        "current_lng": user_lng,
+        "is_team13_admin": is_team13_admin(request.user),
+    }))
 
 
 @require_GET
@@ -379,7 +379,7 @@ def place_detail(request, place_id):
             api["museum"] = detail["museum"]
         return JsonResponse(api)
 
-    return render(request, f"{TEAM_NAME}/place_detail.html", _team13_render_context(request, place=place, detail=detail))
+    return render(request, f"{TEAM_NAME}/place_detail.html", _team13_context(request, {"place": place, "detail": detail}))
 
 
 @require_GET
@@ -726,7 +726,7 @@ def _is_team13_admin(user):
 def team13_admin_dashboard(request):
     """داشبورد ادمین: لیست پیشنهادهای در انتظار تأیید و مدیریت ادمین‌ها."""
     if not getattr(request.user, "is_authenticated", False):
-        login_url = TEAM13_LOGIN_URL
+        login_url = getattr(settings, "LOGIN_URL", "/auth/")
         next_url = request.get_full_path()
         if next_url and not url_has_allowed_host_and_scheme(next_url, allowed_hosts=request.get_host(), require_https=request.is_secure()):
             next_url = "/team13/admin/"
@@ -736,7 +736,7 @@ def team13_admin_dashboard(request):
             redirect_url = f"{login_url}?next={quote(next_url)}"
         return redirect(redirect_url)
     if not is_team13_admin(request.user):
-        login_url = TEAM13_LOGIN_URL
+        login_url = getattr(settings, "LOGIN_URL", "/auth/")
         next_url = quote(request.get_full_path())
         return HttpResponseForbidden(
             '<!DOCTYPE html><html dir="rtl" lang="fa"><head><meta charset="utf-8"><title>دسترسی غیرمجاز</title></head><body style="font-family:tahoma;padding:2rem;max-width:500px;margin:0 auto;">'
@@ -812,7 +812,14 @@ def team13_admin_dashboard(request):
         place_name = trans.name if trans else str(img.target_id)
         pending_images_list.append({"image": img, "place_name": place_name})
 
-    return render(request, f"{TEAM_NAME}/admin_dashboard.html", _team13_render_context(request, pending_requests=pending_requests, contributions_with_images=pending_requests, pending_route_contributions=pending_routes, pending_comments=pending_comments_list, pending_images=pending_images_list, map_index_url=reverse("team13:index")))
+    return render(request, f"{TEAM_NAME}/admin_dashboard.html", _team13_context(request, {
+        "pending_requests": pending_requests,
+        "contributions_with_images": pending_requests,
+        "pending_route_contributions": pending_routes,
+        "pending_comments": pending_comments_list,
+        "pending_images": pending_images_list,
+        "map_index_url": reverse("team13:index"),
+    }))
 
 
 @require_POST
@@ -987,7 +994,7 @@ def event_list(request):
             ]
         })
 
-    return render(request, f"{TEAM_NAME}/events_list.html", _team13_render_context(request, events=events))
+    return render(request, f"{TEAM_NAME}/events_list.html", _team13_context(request, {"events": events}))
 
 
 @require_GET
@@ -1032,7 +1039,7 @@ def event_detail(request, event_id):
             "comments": [{"rating": c.rating, "created_at": c.created_at.isoformat() if c.created_at else None} for c in comments],
         })
 
-    return render(request, f"{TEAM_NAME}/event_detail.html", _team13_render_context(request, event=event, detail=detail))
+    return render(request, f"{TEAM_NAME}/event_detail.html", _team13_context(request, {"event": event, "detail": detail}))
 
 
 @require_POST
@@ -1334,7 +1341,13 @@ def route_request(request):
         name = (t.name if t else None) or (p.translations.filter(lang="en").first().name if p.translations.filter(lang="en").first() else None) or str(p.place_id)
         places_for_select.append({"place_id": str(p.place_id), "name": name})
 
-    return render(request, f"{TEAM_NAME}/routes.html", _team13_render_context(request, route_result=route_result, places_for_select=places_for_select, travel_mode=travel_mode, source_place_id=src_id or "", destination_place_id=dst_id or ""))
+    return render(request, f"{TEAM_NAME}/routes.html", _team13_context(request, {
+        "route_result": route_result,
+        "places_for_select": places_for_select,
+        "travel_mode": travel_mode,
+        "source_place_id": src_id or "",
+        "destination_place_id": dst_id or "",
+    }))
 
 
 # -----------------------------------------------------------------------------
@@ -1934,4 +1947,9 @@ def emergency_nearby(request):
             "radius_km": radius_km,
         })
 
-    return render(request, f"{TEAM_NAME}/emergency.html", _team13_render_context(request, emergency_places=emergency_places, lat=lat, lon=lon, radius_km=radius_km))
+    return render(request, f"{TEAM_NAME}/emergency.html", _team13_context(request, {
+        "emergency_places": emergency_places,
+        "lat": lat,
+        "lon": lon,
+        "radius_km": radius_km,
+    }))
