@@ -96,3 +96,26 @@ class EventTranslation(models.Model):
 
     def __str__(self):
         return f"{self.event_id} ({self.lang})"
+    
+class Image(models.Model):
+    """تصویر مرتبط با یک مکان، رویداد، یا مکان در انتظار تأیید (pending_place)."""
+
+    class TargetType(models.TextChoices):
+        PLACE = "place", "مکان"
+        EVENT = "event", "رویداد"
+        PENDING_PLACE = "pending_place", "مکان در انتظار تأیید"
+
+    image_id = models.UUIDField(
+        primary_key=True, default=uuid.uuid4, editable=False, db_column="image_id"
+    )
+    target_type = models.CharField(max_length=16, choices=TargetType.choices)
+    target_id = models.UUIDField()
+    image_url = models.URLField(max_length=500)
+    is_approved = models.BooleanField(default=False, db_column="is_approved")
+
+    class Meta:
+        app_label = "team13"
+        db_table = "team13_images"
+
+    def __str__(self):
+        return f"{self.target_type}:{self.target_id}"
