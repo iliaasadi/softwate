@@ -26,7 +26,6 @@ function getCsrfToken() {
   return cookieValue;
 }
 
-
 /**
  * Fetch JSON from a team13 endpoint. Automatically appends format=json.
  * @param {string} endpoint - Path relative to API_BASE, e.g. 'places/' or 'routes/'
@@ -72,7 +71,6 @@ async function postRating(url, data) {
   });
 }
 
-
 /**
  * POST JSON to an endpoint (e.g. map-matching). Sends CSRF via header.
  */
@@ -92,7 +90,6 @@ async function postJson(endpoint, data) {
   if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + res.statusText);
   return res.json();
 }
-
 
 // Convenience API names — مسیرها نسبی به API_BASE (مثلاً /team13)
 const api = {
@@ -205,8 +202,6 @@ const api = {
   },
 };
 
-
-
 /**
  * Load places and events from backend for map and sidebar.
  * GET requests; no CSRF required.
@@ -273,7 +268,6 @@ function decodeRouteGeometry(routeGeometry) {
   }
 }
 
-
 function drawStraightRouteLine(map, startLat, startLng, destLat, destLng, routeGeometry) {
   if (!map || typeof L === 'undefined') return;
   let linePoints = null;
@@ -296,7 +290,6 @@ function drawStraightRouteLine(map, startLat, startLng, destLat, destLng, routeG
   window.team13RouteLine = window.currentPath;
   map.fitBounds(window.currentPath.getBounds(), { padding: [40, 40] });
 }
-
 
 /**
  * مسیر از موقعیت کاربر تا نقطهٔ مقصد — ETA از بک‌اند، رسم خط مستقیم.
@@ -476,8 +469,6 @@ function drawIsochroneOnMap(map, geojson, layerOptions) {
   }
   return window.team13IsochroneLayer;
 }
-
-
 
 /**
  * نگاشت نقاط خام (مثلاً GPS) به مسیر روی نقشه (Map Matching).
