@@ -1674,4 +1674,174 @@
       }, true);
     }
   }
+
+
+  
+  /** پاپ‌آپ دکمهٔ سبز: یک دکمه «ادامه»؛ با کلیک روی آن nearest-place صدا زده می‌شود و بر اساس نتیجه ثبت مکان یا امتیاز/عکس. */
+  function buildGreenButtonPopupContent(lat, lng, markerRef, mapRef) {
+    var wrap = document.createElement('div');
+    wrap.className = 'team13-reverse-popup-content';
+    wrap.setAttribute('dir', 'rtl');
+    wrap.innerHTML =
+      '<p class="team13-reverse-popup-address">برای ثبت مکان یا امتیاز/عکس اینجا کلیک کنید.</p>' +
+      '<div class="team13-reverse-popup-actions">' +
+      '<button type="button" class="team13-reverse-popup-btn team13-reverse-popup-btn-green">ادامه</button>' +
+      '</div>' +
+      '<div class="team13-reverse-popup-footer">' +
+      '<button type="button" class="team13-reverse-popup-delete-link">حذف نقطه</button>' +
+      '</div>';
+    var btnGreen = wrap.querySelector('.team13-reverse-popup-btn-green');
+    var btnDelete = wrap.querySelector('.team13-reverse-popup-delete-link');
+    if (btnGreen) {
+      btnGreen.addEventListener('click', function () {
+        if (!window.Team13Api || typeof window.Team13Api.fetchData !== 'function') return;
+        var params = { lat: String(lat), lng: String(lng), radius_km: '0.05' };
+        window.Team13Api.fetchData('nearest-place/', params)
+          .then(function (data) {
+            if (!data) data = {};
+            var place = data.place;
+            if (!place) {
+              if (!window.confirm('آیا می‌خواهید در این نقطه موقعیتی ثبت کنید؟')) {
+                clearReverseGeocodeMarker();
+                return;
+              }
+              if (typeof window.Team13OpenContributionModal === 'function') {
+                window.Team13OpenContributionModal(lat, lng);
+              }
+              clearReverseGeocodeMarker();
+              return;
+            }
+            var placeId = place.place_id;
+            var name = place.name_fa || place.name_en || 'مکان';
+            if (typeof window.Team13OpenPlaceActionsModal === 'function') {
+              window.Team13OpenPlaceActionsModal(placeId, name, lat, lng);
+            }
+            clearReverseGeocodeMarker();
+          })
+          .catch(function () {
+            if (window.showToast) window.showToast('خطا در ارتباط با سرور.');
+          });
+      });
+    }
+    if (btnDelete) {
+      btnDelete.addEventListener('click', function () { clearReverseGeocodeMarker(); });
+    }
+    return wrap;
+  }
+
+  function buildReversePopupContent(lat, lng, address, markerRef, mapRef) {
+    var wrap = document.createElement('div');
+    wrap.className = 'team13-reverse-popup-content';
+    wrap.setAttribute('dir', 'rtl');
+    wrap.innerHTML =
+      '<p class="team13-reverse-popup-address">' + escapeHtml(address) + '</p>' +
+      '<div class="team13-reverse-popup-actions">' +
+      '<button type="button" class="team13-reverse-popup-btn team13-reverse-popup-btn-fav"><span class="team13-popup-star" aria-hidden="true">⭐</span> افزودن به علاقه‌مندی</button>' +
+      '<button type="button" class="team13-reverse-popup-btn team13-reverse-popup-btn-start">تعیین به عنوان مبدا</button>' +
+      '<button type="button" class="team13-reverse-popup-btn team13-reverse-popup-btn-dest">تعیین به عنوان مقصد</button>' +
+      '</div>' +
+      '<div class="team13-reverse-popup-footer">' +
+      '<button type="button" class="team13-reverse-popup-delete-link">حذف نقطه</button>' +
+      '</div>';
+    var btnFav = wrap.querySelector('.team13-reverse-popup-btn-fav');
+    var btnStart = wrap.querySelector('.team13-reverse-popup-btn-start');
+    var btnDest = wrap.querySelector('.team13-reverse-popup-btn-dest');
+    var btnDelete = wrap.querySelector('.team13-reverse-popup-delete-link');
+    if (btnFav) {
+      btnFav.addEventListener('click', function () {
+        if (typeof window.Team13OpenAddFavoriteWithLocation === 'function') {
+          window.Team13OpenAddFavoriteWithLocation(lat, lng, address);
+        }
+      });
+    }
+    if (btnStart) {
+      btnStart.addEventListener('click', function () {
+        if (typeof window.Team13OpenSidebarAndRouteTab === 'function') window.Team13OpenSidebarAndRouteTab();
+        setStartFromCoords(lat, lng, address);
+      });
+    }
+    if (btnDest) {
+      btnDest.addEventListener('click', function () {
+        if (typeof window.Team13OpenSidebarAndRouteTab === 'function') window.Team13OpenSidebarAndRouteTab();
+        setDestFromCoords(lat, lng, address);
+      });
+    }
+    if (btnDelete) {
+      btnDelete.addEventListener('click', function () {
+        clearReverseGeocodeMarker();
+      });
+    }
+    return wrap;
+  }
+
+  function clearReverseGeocodeMarker() {
+    var map = getMap();
+    if (reverseGeocodeMarker && map && map.hasLayer(reverseGeocodeMarker)) {
+      map.removeLayer(reverseGeocodeMarker);
+    }
+    reverseGeocodeMarker = null;
+  }
+
+  function onMapClickReverseGeocode(e) {
+    if (window._team13ClickOnMarkerOrPopup) {
+      window._team13ClickOnMarkerOrPopup = false;
+      return;
+    }
+    if (window._team13EmergencyPickMode && e && e.latlng) {
+      window._team13EmergencyPickMode = false;
+      var lat = e.latlng.lat;
+      var lng = e.latlng.lng;
+      if (window.showToast) window.showToast('در حال جستجوی مراکز امدادی در شعاع ۱۰ کیلومتر…');
+      runEmergencySearch(lat, lng);
+      return;
+    }
+    if (onMapClickForDiscovery(e)) return;
+    if (onMapClickForStartDest(e)) return;
+    if (window._team13PickForFavorite && typeof window._team13PickForFavorite === 'function') {
+      var cb = window._team13PickForFavorite;
+      window._team13PickForFavorite = null;
+      var lat = e.latlng.lat;
+      var lng = e.latlng.lng;
+      cb(lat, lng);
+      return;
+    }
+    if (!window.isPlacementMode) return;
+    var map = getMap();
+    if (!map || !e || !e.latlng) return;
+    var lat = e.latlng.lat;
+    var lng = e.latlng.lng;
+
+    if (reverseGeocodeMarker && map) {
+      map.removeLayer(reverseGeocodeMarker);
+      reverseGeocodeMarker = null;
+    }
+
+    var markerIcon = L.divIcon({
+      className: 'team13-reverse-marker',
+      html: '<span style="width:22px;height:22px;background:#40916c;border:2px solid #1b4332;border-radius:50%;display:block;box-shadow:0 2px 8px rgba(0,0,0,0.3);"></span>',
+      iconSize: [22, 22],
+      iconAnchor: [11, 11],
+    });
+    reverseGeocodeMarker = L.marker([lat, lng], { icon: markerIcon }).addTo(map);
+
+    function openPopupWithAddress(address) {
+      var wrap = buildReversePopupContent(lat, lng, address, reverseGeocodeMarker, map);
+      reverseGeocodeMarker.bindPopup(wrap, { className: 'team13-reverse-popup', closeButton: true }).openPopup();
+      setPlacementModeActive(false);
+    }
+
+    if (window.Team13Api && typeof window.Team13Api.reverseGeocode === 'function') {
+      window.Team13Api.reverseGeocode(lat, lng)
+        .then(function (data) {
+          var address = (data && (data.formatted_address || data.address || data.address_compact || data.postal_address)) || '';
+          openPopupWithAddress(address || ('مختصات: ' + lat.toFixed(5) + ', ' + lng.toFixed(5)));
+        })
+        .catch(function () {
+          openPopupWithAddress('آدرس یافت نشد');
+        });
+    } else {
+      openPopupWithAddress('مختصات: ' + lat.toFixed(5) + ', ' + lng.toFixed(5));
+    }
+  }
+
   }})
