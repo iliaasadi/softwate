@@ -198,3 +198,20 @@ class MuseumDetails(models.Model):
 
     def __str__(self):
         return f"Museum {self.place_id}"
+
+class PlaceAmenity(models.Model):
+    """امکانات یک مکان (پارکینگ، استخر، وای‌فای و ...)."""
+
+    place = models.ForeignKey(
+        Place, on_delete=models.CASCADE, related_name="amenities", db_column="place_id"
+    )
+    amenity_name = models.CharField(max_length=128)
+
+    class Meta:
+        app_label = "team13"
+        db_table = "team13_place_amenities"
+        unique_together = [("place", "amenity_name")]
+
+    def __str__(self):
+        return f"{self.place_id} — {self.amenity_name}"
+    
