@@ -1619,4 +1619,59 @@
       });
     }
   }
+
+  
+  function onMapClickForStartDest(e) {
+    if (!pickMode || pickMode !== 'start' && pickMode !== 'dest') return false;
+    var map = getMap();
+    if (!map || !e || !e.latlng) return true;
+    var lat = e.latlng.lat;
+    var lng = e.latlng.lng;
+    var mode = pickMode;
+    setPickMode(null);
+    window.Team13Api.reverseGeocode(lat, lng)
+      .then(function (data) {
+        var addr = (data && (data.address || data.address_compact || data.postal_address)) || '';
+        if (mode === 'start') setStartFromCoords(lat, lng, addr);
+        else setDestFromCoords(lat, lng, addr);
+      })
+      .catch(function () {
+        if (mode === 'start') setStartFromCoords(lat, lng, '');
+        else setDestFromCoords(lat, lng, '');
+      });
+    return true;
+  }
+
+  // --- Placement mode: add pointer only when user has toggled it via "Select Point" button ---
+  function setPlacementModeActive(active) {
+    window.isPlacementMode = !!active;
+    updateSelectionActiveCursor();
+    var btn = document.getElementById('team13-btn-add-pointer');
+    if (btn) btn.classList.toggle('active-btn', active);
+  }
+
+  // --- Map click: show green button only; second click (on button) → nearest-place then register or rate/photo ---
+  // Ensure clicks on markers/popups do not trigger placement or other map-click logic (event priority).
+  function initReverseGeocodeClick() {
+    var map = getMap();
+    if (!map || !window.Team13Api) return;
+    map.off('click', onMapClickReverseGeocode);
+    map.on('click', onMapClickReverseGeocode);
+
+    var container = document.getElementById('map-container');
+    if (container && !container._team13CaptureClickInstalled) {
+      container._team13CaptureClickInstalled = true;
+      container.addEventListener('click', function (e) {
+        var target = e.target;
+        if (target && typeof target.closest === 'function') {
+          if (target.closest('.mapboxgl-marker') || target.closest('.team13-neshan-marker') ||
+              target.closest('.mapboxgl-popup') || target.closest('.team13-reverse-popup-content') ||
+              target.closest('.team13-reverse-popup') || target.closest('.team13-place-marker')) {
+            window._team13ClickOnMarkerOrPopup = true;
+          }
+        }
+        setTimeout(function () { window._team13ClickOnMarkerOrPopup = false; }, 0);
+      }, true);
+    }
+  }
   }})
