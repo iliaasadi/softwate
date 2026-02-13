@@ -660,4 +660,189 @@
     return m + ' دقیقه و ' + s + ' ثانیه';
   }
 
+   // --- Sidebar: cards with flyTo on click ---
+  function renderPlaceCard(p) {
+    var name = (p.name_fa || p.name_en || p.type_display || p.place_id).trim();
+    var lat = parseFloat(p.latitude);
+    var lng = parseFloat(p.longitude);
+    var btn = '<button type="button" class="team13-btn-show-map" data-lat="' + lat + '" data-lng="' + lng + '" data-place-id="' + escapeHtml(p.place_id) + '" data-name="' + escapeHtml(name) + '">نمایش روی نقشه</button>';
+    return '<div class="team13-card team13-data-card team13-clickable-card" data-lat="' + lat + '" data-lng="' + lng + '" data-place-id="' + escapeHtml(p.place_id) + '" data-name="' + escapeHtml(name) + '"><p class="font-semibold text-[#1b4332]">' + escapeHtml(name) + '</p><p class="text-sm text-gray-600">' + escapeHtml(p.type_display || '') + (p.city ? ' — ' + escapeHtml(p.city) : '') + '</p>' + btn + '</div>';
+  }
+
+  function renderEventCard(e) {
+    var title = (e.title_fa || e.title_en || e.event_id).trim();
+    var eventId = e.event_id;
+    var btn = '<button type="button" class="team13-btn-show-event-on-map" data-event-id="' + escapeHtml(eventId) + '" data-title="' + escapeHtml(title) + '">نمایش روی نقشه</button>';
+    return '<div class="team13-card team13-data-card team13-clickable-card" data-event-id="' + escapeHtml(eventId) + '" data-title="' + escapeHtml(title) + '"><p class="font-semibold text-[#1b4332]">' + escapeHtml(title) + '</p><p class="text-sm text-gray-600">' + (e.start_at || e.start_at_iso || '') + (e.city ? ' — ' + escapeHtml(e.city) : '') + '</p>' + btn + '</div>';
+  }
+
+  function flyTo(map, lat, lng, zoom) {
+    if (!map) return;
+    var z = zoom != null ? zoom : (map.getZoom && map.getZoom()) || 14;
+    if (map.flyTo) map.flyTo([lat, lng], z, { duration: 0.5 });
+    else map.setView([lat, lng], z, { animate: true });
+  }
+
+  function haversineKm(lat1, lng1, lat2, lng2) {
+    var R = 6371;
+    var dLat = (lat2 - lat1) * Math.PI / 180;
+    var dLng = (lng2 - lng1) * Math.PI / 180;
+    var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
+  function getCategoryIcon(type) {
+    var icons = { hotel: '🛏', food: '🍴', hospital: '🏥', museum: '🎭', entertainment: '🎪' };
+    return icons[type] || '📍';
+  }
+
+  function renderFacilityCard(place, distanceKm) {
+    var name = (place.name_fa || place.name_en || place.type_display || '').trim() || place.place_id;
+    var category = place.type_display || place.type || '—';
+    var typeKey = (place.type || '').toLowerCase();
+    var icon = getCategoryIcon(typeKey);
+    var rating = place.rating != null ? Number(place.rating) : null;
+    var starsHtml = rating != null
+      ? ('<span class="team13-facility-stars" aria-label="امتیاز ' + rating + ' از ۵">' + '★'.repeat(Math.round(rating)) + '<span class="team13-facility-stars-empty">' + '☆'.repeat(5 - Math.round(rating)) + '</span></span>')
+      : '<span class="text-gray-400 text-sm">—</span>';
+    var distText = distanceKm != null ? (distanceKm < 1 ? (Math.round(distanceKm * 1000) + ' م') : (distanceKm.toFixed(1) + ' ک.م')) : '—';
+    var lat = parseFloat(place.latitude);
+    var lng = parseFloat(place.longitude);
+    var placeId = place.place_id || '';
+    return '<div class="team13-facility-card team13-clickable-card" data-lat="' + lat + '" data-lng="' + lng + '" data-place-id="' + escapeHtml(placeId) + '" data-name="' + escapeHtml(name) + '">' +
+      '<div class="team13-facility-card-head">' +
+      '<span class="team13-facility-icon" aria-hidden="true">' + icon + '</span>' +
+      '<p class="team13-facility-name font-semibold text-[#1b4332]">' + escapeHtml(name) + '</p>' +
+      '</div>' +
+      '<p class="team13-facility-category text-sm text-gray-600">' + escapeHtml(category) + '</p>' +
+      '<div class="team13-facility-meta">' + starsHtml + ' <span class="team13-facility-distance">' + escapeHtml(distText) + '</span></div>' +
+      '<button type="button" class="team13-btn-show-map" data-lat="' + lat + '" data-lng="' + lng + '" data-place-id="' + escapeHtml(placeId) + '" data-name="' + escapeHtml(name) + '">نمایش روی نقشه</button>' +
+      '</div>';
+  }
+
+  function getTop5PlacesNearby(places, userLat, userLng) {
+    if (!places || !places.length) return [];
+    var list = places.map(function (p) {
+      var lat = parseFloat(p.latitude);
+      var lng = parseFloat(p.longitude);
+      var dist = (userLat != null && userLng != null && !isNaN(lat) && !isNaN(lng))
+        ? haversineKm(userLat, userLng, lat, lng) : null;
+      return { place: p, distanceKm: dist };
+    });
+    list.sort(function (a, b) {
+      var ra = a.place.rating != null ? Number(a.place.rating) : 0;
+      var rb = b.place.rating != null ? Number(b.place.rating) : 0;
+      if (rb !== ra) return rb - ra;
+      if (a.distanceKm != null && b.distanceKm != null) return a.distanceKm - b.distanceKm;
+      if (a.distanceKm != null) return -1;
+      if (b.distanceKm != null) return 1;
+      return 0;
+    });
+    return list.slice(0, 5);
+  }
+
+  function refreshFacilitiesList() {
+    var placesList = document.getElementById('places-list');
+    var panelPlaces = document.getElementById('panel-places');
+    if (!placesList) return;
+    var isFacilitiesActive = panelPlaces && panelPlaces.classList.contains('active');
+    if (!isFacilitiesActive) return;
+
+    placesList.innerHTML = '<div class="team13-facilities-loading"><span class="team13-facilities-spinner" aria-hidden="true"></span><p class="team13-facilities-loading-text">در حال جستجو...</p></div>';
+    var api = window.Team13Api;
+    var loadPromise = window._team13PlacesCache && window._team13PlacesCache.length
+      ? Promise.resolve({ places: window._team13PlacesCache })
+      : (api && api.loadMapData ? api.loadMapData() : Promise.resolve({ places: [] }));
+    var userPromise = window.userLocationCoords
+      ? Promise.resolve(window.userLocationCoords)
+      : (typeof getCurrentPosition === 'function' ? getCurrentPosition() : Promise.reject(new Error('no position'))).then(function (pos) {
+          var lat = pos.coords && pos.coords.latitude;
+          var lng = pos.coords && pos.coords.longitude;
+          if (lat != null && lng != null) window.userLocationCoords = { lat: lat, lng: lng };
+          return window.userLocationCoords || { lat: lat, lng: lng };
+        }).catch(function () { return null; });
+
+    Promise.all([loadPromise, userPromise]).then(function (results) {
+      var places = (results[0] && results[0].places) ? results[0].places : [];
+      if (results[0] && results[0].places && results[0].places.length) window._team13PlacesCache = results[0].places;
+      var coords = results[1];
+      var userLat = coords && coords.lat;
+      var userLng = coords && coords.lng;
+      var top5 = getTop5PlacesNearby(places, userLat, userLng);
+      if (!top5.length) {
+        placesList.innerHTML = '<div class="team13-facilities-list"><p class="text-sm text-gray-600 py-4 text-center">مکانی یافت نشد.</p></div>';
+        return;
+      }
+      var html = '<div class="team13-facilities-list">';
+      top5.forEach(function (item) {
+        html += renderFacilityCard(item.place, item.distanceKm);
+      });
+      html += '</div>';
+      placesList.innerHTML = html;
+    }).catch(function () {
+      placesList.innerHTML = '<div class="team13-facilities-list"><p class="text-sm text-gray-600 py-4 text-center">خطا در بارگذاری. دوباره تلاش کنید.</p></div>';
+    });
+  }
+
+  function onPlacesTabActivated() {
+    refreshFacilitiesList();
+  }
+
+  function injectSidebarCards(places, events) {
+    var eventsList = document.getElementById('events-list');
+    if (eventsList) {
+      eventsList.innerHTML = '';
+      (events || []).forEach(function (e) {
+        eventsList.insertAdjacentHTML('beforeend', renderEventCard(e));
+      });
+    }
+    var map = getMap();
+    function openActionMenuAt(lat, lng, name) {
+      flyTo(map, lat, lng);
+      if (typeof window.showActionMenu === 'function') window.showActionMenu(lat, lng, name || 'مکان');
+    }
+
+    eventsList && eventsList.addEventListener('click', function (ev) {
+      var btn = ev.target.closest('.team13-btn-show-event-on-map');
+      if (btn) {
+        var eventId = btn.getAttribute('data-event-id');
+        var title = btn.getAttribute('data-title') || '';
+        if (eventId && window.Team13Api && window.Team13Api.api) {
+          window.Team13Api.api.eventDetail(eventId).then(function (detail) {
+            var lat = detail.latitude != null ? parseFloat(detail.latitude) : NaN;
+            var lng = detail.longitude != null ? parseFloat(detail.longitude) : NaN;
+            if (!isNaN(lat) && !isNaN(lng)) {
+              if (window.allMarkers && window.allMarkers['event-' + eventId]) {
+                showPoiMarkerById(map, 'event-' + eventId, lat, lng, false);
+              } else {
+                openActionMenuAt(lat, lng, title);
+              }
+            }
+          }).catch(function () {});
+        }
+        if (typeof window.Team13CloseSidebar === 'function') window.Team13CloseSidebar();
+        return;
+      }
+      var card = ev.target.closest('.team13-clickable-card[data-event-id]');
+      if (card && window.Team13Api && window.Team13Api.api) {
+        var eventId = card.getAttribute('data-event-id');
+        var title = card.getAttribute('data-title') || '';
+        window.Team13Api.api.eventDetail(eventId).then(function (detail) {
+          var lat = detail.latitude != null ? parseFloat(detail.latitude) : NaN;
+          var lng = detail.longitude != null ? parseFloat(detail.longitude) : NaN;
+          if (!isNaN(lat) && !isNaN(lng)) {
+            if (window.allMarkers && window.allMarkers['event-' + eventId]) {
+              showPoiMarkerById(map, 'event-' + eventId, lat, lng, false);
+            } else {
+              openActionMenuAt(lat, lng, title);
+            }
+          }
+        }).catch(function () {});
+        if (typeof window.Team13CloseSidebar === 'function') window.Team13CloseSidebar();
+      }
+    });
+  }
+
   }})
