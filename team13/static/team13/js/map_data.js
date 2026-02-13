@@ -303,4 +303,15 @@
       flyTo(map, centerLat, centerLng, 12);
     }
   }
+
+  
+  /** Update only the events list in sidebar (used by city filter). */
+  function injectEventsList(events) {
+    var eventsList = document.getElementById('events-list');
+    if (!eventsList) return;
+    eventsList.innerHTML = '';
+    (events || []).forEach(function (e) {
+      eventsList.insertAdjacentHTML('beforeend', renderEventCard(e));
+    });
+  }
   }})
