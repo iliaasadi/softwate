@@ -194,4 +194,53 @@
       '<div class="team13-reverse-popup-actions">' + routeBtn + '</div>' +
       '</div>';
   }
+  function syncDatabaseLayers() {
+    var map = getMap();
+    if (!map || !window.Team13Api || !window.Team13Api.loadMapData) return Promise.reject(new Error('Map or API not ready'));
+
+    return window.Team13Api.loadMapData().then(function (data) {
+      var places = data.places || [];
+      var events = data.events || [];
+      window._team13PlacesCache = places;
+      window._team13EventsCache = events;
+      clearPlaceAndEventMarkers(map);
+      window.allMarkers = {};
+      addPlaceMarkers(map, places);
+      addEventMarkers(map, events);
+      injectSidebarCards(places, events);
+      bindRouteButtonInPopups(map);
+      setPoiIconsVisible(window._team13PoiIconsVisible);
+      var count = (places.length || 0) + (events.length || 0);
+      if (count > 0 && window._team13PoiIconsVisible) {
+        setTimeout(function () { setPoiIconsVisible(true); }, 250);
+      }
+      return { places: places, events: events };
+    });
+  }
+
+  function clearPlaceAndEventMarkers(map) {
+    if (!map) return;
+    var allMarkers = window.allMarkers || {};
+    Object.keys(allMarkers).forEach(function (id) {
+      var m = allMarkers[id];
+      if (m && typeof m.remove === 'function') m.remove();
+    });
+    window.allMarkers = {};
+    if (window.currentlyShownPoiMarker) {
+      map.removeLayer(window.currentlyShownPoiMarker);
+      window.currentlyShownPoiMarker = null;
+    }
+    if (window.team13PlaceLayerGroup) {
+      map.removeLayer(window.team13PlaceLayerGroup);
+      window.team13PlaceLayerGroup = null;
+    }
+    if (window.team13EventLayerGroup) {
+      map.removeLayer(window.team13EventLayerGroup);
+      window.team13EventLayerGroup = null;
+    }
+    if (window.team13CityEventLayerGroup) {
+      map.removeLayer(window.team13CityEventLayerGroup);
+      window.team13CityEventLayerGroup = null;
+    }
+  }
   }})
