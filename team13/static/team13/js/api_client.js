@@ -227,3 +227,48 @@ async function loadMapData() {
     events: eventsData.events || [],
   };
 }
+
+/**
+ * مسیریابی و ETA از بک‌اند (Haversine). خط مسیر فعلاً مستقیم (مبدأ–مقصد)؛ بعداً با API جدید جایگزین می‌شود.
+ */
+function toTravelMode(serviceType) {
+  const mode = String(serviceType).toLowerCase();
+  if (mode === 'walking') return 'walk';
+  if (mode === 'bicycle') return 'bicycle';
+  if (mode === 'transit') return 'transit';
+  return 'car';
+}
+
+/**
+ * استخراج مختصات مسیر از پاسخ مسیریابی نشان (overview_polyline یا legs[].steps[].polyline).
+ * مستندات: https://platform.neshan.org/docs/sdk/web/mapboxgl/examples/neshan-mapbox-draw-route/
+ * @param {object} routeGeometry - routes[0] از پاسخ API نشان
+ * @returns {Array<[number,number]>} آرایهٔ [lat, lng] برای L.polyline؛ در صورت خطا null
+ */
+function decodeRouteGeometry(routeGeometry) {
+  if (!routeGeometry || typeof polyline === 'undefined' || typeof polyline.decode !== 'function') return null;
+  const precision = 5;
+  const points = [];
+  try {
+    const overviewEncoded = (routeGeometry.overview_polyline && routeGeometry.overview_polyline.points) || (typeof routeGeometry.overview_polyline === 'string' ? routeGeometry.overview_polyline : null);
+    if (overviewEncoded && typeof overviewEncoded === 'string') {
+      const decoded = polyline.decode(overviewEncoded, precision);
+      decoded.forEach((p) => points.push([p[0], p[1]]));
+    }
+    if (points.length === 0 && routeGeometry.legs && Array.isArray(routeGeometry.legs)) {
+      for (const leg of routeGeometry.legs) {
+        const steps = leg.steps || [];
+        for (const step of steps) {
+          const encoded = step.polyline;
+          if (encoded && typeof encoded === 'string') {
+            const decoded = polyline.decode(encoded, precision);
+            decoded.forEach((p) => points.push([p[0], p[1]]));
+          }
+        }
+      }
+    }
+    return points.length > 0 ? points : null;
+  } catch (e) {
+    return null;
+  }
+}
