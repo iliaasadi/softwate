@@ -1844,4 +1844,153 @@
     }
   }
 
+  
+  // --- لایو لوکیشن: فقط با کلیک دکمه (نقشه نشان map.locate ندارد؛ از Geolocation API استفاده می‌کنیم) ---
+  var geoOptions = { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 };
+
+  function startUserLocationTracking() {
+    // ردیابی خودکار غیرفعال؛ موقعیت با کلیک دکمه «موقعیت من» فعال می‌شود
+  }
+
+  function updateUserLocationOnMap(lat, lng) {
+    var map = getMap();
+    if (!map || !L) return;
+    var latlng = { lat: lat, lng: lng };
+    window.userLocationCoords = latlng;
+    if (!window.userMarker) {
+      window.userMarker = L.marker(latlng, {
+        icon: createUserLocationIcon(),
+        interactive: false,
+        keyboard: false,
+        zIndexOffset: 1000,
+      }).addTo(map);
+    } else {
+      window.userMarker.setLatLng(latlng);
+    }
+    // همیشه نقشه را روی موقعیت فعلی کاربر مرکز و زوم کن (zoom 17 برای نمایش واضح)
+    if (typeof map.flyTo === 'function') {
+      map.flyTo(latlng, 17, { duration: 0.7 });
+    }
+    if (!window.userMarker || !window._userLocationWatchId) {
+      if (window.showToast) window.showToast('موقعیت شما روی نقشه نمایش داده شد');
+    }
+  }
+
+  function startLiveLocationWatch() {
+    if (!navigator.geolocation || window._userLocationWatchId != null) return;
+    window._userLocationWatchId = navigator.geolocation.watchPosition(
+      function (pos) {
+        updateUserLocationOnMap(pos.coords.latitude, pos.coords.longitude);
+      },
+      function (err) {
+        var msg = 'موقعیت فعلی تشخیص داده نشد';
+        if (err.code === 1) msg = 'دسترسی به موقعیت رد شد. در تنظیمات مرورگر اجازهٔ مکان را فعال کنید.';
+        if (err.code === 2) msg = 'موقعیت در دسترس نیست. اتصال یا GPS را بررسی کنید.';
+        if (err.code === 3) msg = 'زمان درخواست موقعیت تمام شد.';
+        if (window.showToast) window.showToast(msg);
+      },
+      geoOptions
+    );
+  }
+
+  function setPoiIconsVisible(visible) {
+    window._team13PoiIconsVisible = !!visible;
+    var map = getMap();
+    if (!map || !L) return;
+    var allMarkers = window.allMarkers || {};
+    var cityGroup = window.team13CityEventLayerGroup;
+    if (visible) {
+      if (cityGroup && typeof cityGroup.addTo === 'function') cityGroup.addTo(map);
+      Object.keys(allMarkers).forEach(function (id) {
+        var m = allMarkers[id];
+        if (m && typeof m.addTo === 'function') {
+          if (!m._onMap) m.addTo(map);
+        }
+      });
+    } else {
+      if (cityGroup && map.hasLayer && map.hasLayer(cityGroup)) map.removeLayer(cityGroup);
+      Object.keys(allMarkers).forEach(function (id) {
+        var m = allMarkers[id];
+        if (m && (m._onMap || (map.hasLayer && map.hasLayer(m)))) {
+          if (typeof m.remove === 'function') m.remove();
+          else if (map.removeLayer) map.removeLayer(m);
+        }
+      });
+    }
+  }
+
+  function initPoiToggleButton() {
+    var btn = document.getElementById('team13-btn-poi-toggle');
+    if (!btn) return;
+    function updateButtonState() {
+      var on = window._team13PoiIconsVisible;
+      btn.classList.toggle('team13-btn-poi-toggle-on', on);
+      btn.classList.toggle('team13-btn-poi-toggle-off', !on);
+      btn.setAttribute('aria-label', on ? 'پنهان کردن آیکون مکان‌ها' : 'نمایش آیکون مکان‌ها');
+      btn.title = on ? 'پنهان کردن آیکون مکان‌ها و رویدادها' : 'نمایش آیکون مکان‌ها و رویدادها';
+    }
+    updateButtonState();
+    btn.addEventListener('click', function () {
+      window._team13PoiIconsVisible = !window._team13PoiIconsVisible;
+      var map = getMap();
+      if (window._team13PoiIconsVisible && map && L) {
+        var allMarkers = window.allMarkers || {};
+        var hasMarkers = Object.keys(allMarkers).length > 0;
+        if (!hasMarkers && (window._team13PlacesCache || window._team13EventsCache)) {
+          addPlaceMarkers(map, window._team13PlacesCache || []);
+          addEventMarkers(map, window._team13EventsCache || []);
+        }
+      }
+      setPoiIconsVisible(window._team13PoiIconsVisible);
+      updateButtonState();
+    });
+  }
+
+  function initAddPointerButton() {
+    var btn = document.getElementById('team13-btn-add-pointer');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      if (window.isPlacementMode) {
+        setPlacementModeActive(false);
+      } else {
+        setPlacementModeActive(true);
+      }
+    });
+  }
+
+  function initCenterOnMeButton() {
+    var btn = document.getElementById('team13-btn-center-me');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      var map = getMap();
+      if (!map) return;
+      if (!navigator.geolocation) {
+        if (window.showToast) window.showToast('مرورگر شما موقعیت مکانی را پشتیبانی نمی‌کند.');
+        return;
+      }
+      // اگر قبلاً موقعیت داریم، بلافاصله نقشه را روی آن ببر و یک بار هم موقعیت تازه بگیر
+      if (window.userLocationCoords && typeof map.flyTo === 'function') {
+        map.flyTo(window.userLocationCoords, 17, { duration: 0.6 });
+      }
+      btn.disabled = true;
+      navigator.geolocation.getCurrentPosition(
+        function (pos) {
+          var lat = pos.coords.latitude;
+          var lng = pos.coords.longitude;
+          updateUserLocationOnMap(lat, lng);
+          startLiveLocationWatch();
+          btn.disabled = false;
+        },
+        function (err) {
+          btn.disabled = false;
+          var msg = 'موقعیت فعلی تشخیص داده نشد';
+          if (err.code === 1) msg = 'دسترسی به موقعیت رد شد. در تنظیمات مرورگر اجازهٔ مکان را فعال کنید.';
+          if (err.code === 2) msg = 'موقعیت در دسترس نیست. اتصال یا GPS را بررسی کنید.';
+          if (err.code === 3) msg = 'زمان درخواست موقعیت تمام شد. دوباره تلاش کنید.';
+          if (window.showToast) window.showToast(msg);
+        },
+        geoOptions
+      );
+    });
+  }
   }})
