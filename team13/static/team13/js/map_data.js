@@ -60,4 +60,32 @@
       iconAnchor: [16, 16],
     });
   }
+
+
+  function createDiscoveryPlaceIcon(type) {
+    if (typeof L === 'undefined') return null;
+    var cfg = getPoiIconConfig(type);
+    var html = '<span class="team13-poi-pin team13-discovery-marker" style="' +
+      'width:32px;height:32px;background:' + cfg.color + ';' +
+      'border:2px solid #fff;border-radius:50%;' +
+      'box-shadow:0 3px 10px rgba(0,0,0,0.25);' +
+      'display:flex;align-items:center;justify-content:center;' +
+      'font-size:16px;line-height:1;">' + cfg.emoji + '</span>';
+    return L.divIcon({
+      className: 'team13-place-marker team13-discovery-marker',
+      html: html,
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
+    });
+  }
+
+  function createEventIcon() {
+    if (typeof L === 'undefined') return null;
+    return L.divIcon({
+      className: 'team13-event-marker',
+      html: '<span style="width:22px;height:22px;background:' + EVENT_MARKER_COLOR + ';border:2px solid #9d0208;border-radius:4px;display:block;box-shadow:0 2px 4px rgba(0,0,0,0.2);"></span>',
+      iconSize: [22, 22],
+      iconAnchor: [11, 11],
+    });
+  }
   }})
