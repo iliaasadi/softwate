@@ -376,3 +376,104 @@ async function getRouteFromTo(startCoords, destCoords, serviceType, options) {
   return { distanceKm, durationMinutes, serviceType: type, eta_source: data.eta_source };
 }
 
+/**
+ * تبدیل مختصات به آدرس (Reverse Geocoding) نشان.
+ * خروجی: { status, formatted_address, address, address_compact, route_name, route_type,
+ *   neighbourhood, city, state, place, municipality_zone, in_traffic_zone, in_odd_even_zone,
+ *   village, county, district } یا null.
+ */
+async function reverseGeocode(lat, lon) {
+  if (lat == null || lon == null || isNaN(Number(lat)) || isNaN(Number(lon))) return null;
+  try {
+    const data = await fetchData('reverse-geocode/', { lat: String(lat), lng: String(lon) });
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * تبدیل آدرس متنی به مختصات (Geocoding) نشان.
+ * @param {string} address - آدرس مورد نظر
+ * @param {{ province?: string, city?: string, lat?: number, lng?: number, plus?: boolean, extent?: object }} [options]
+ * @returns {Promise<{ items: Array<{ location: { latitude, longitude }, province, city, neighbourhood, unMatchedTerm }> }>}
+ */
+async function geocode(address, options = {}) {
+  if (!address || String(address).trim() === '') return { items: [] };
+  try {
+    return await api.geocode(address, options);
+  } catch {
+    return { items: [] };
+  }
+}
+
+async function getCityFromCoords(lat, lng) {
+  return null;
+}
+
+async function findNearest(category) {
+  return null;
+}
+
+/**
+ * بهینه‌سازی ترتیب بازدید از چند نقطه (TSP).
+ * waypoints: آرایهٔ [ [lat,lng], ... ] یا رشتهٔ "lat,lng|lat,lng|..."
+ * خروجی: { points: [ { name, location: [lng,lat], index }, ... ] } به ترتیب بهینه.
+ */
+async function getTspOrder(waypoints, options = {}) {
+  const data = await api.tsp(waypoints, options);
+  return data;
+}
+
+/**
+ * رسم ترتیب بهینهٔ TSP روی نقشه (خط اتصال نقاط به ترتیب).
+ * points: آرایهٔ خروجی TSP؛ هر نقطه location: [lng, lat].
+ */
+function drawTspOrderOnMap(map, points, lineOptions) {
+  if (!map || typeof L === 'undefined' || !points || points.length < 2) return null;
+  const latlngs = points.map(p => {
+    const loc = p.location;
+    return [loc[1], loc[0]];
+  });
+  if (window.team13TspLine && map) map.removeLayer(window.team13TspLine);
+  window.team13TspLine = L.polyline(latlngs, {
+    color: (lineOptions && lineOptions.color) || '#e07c24',
+    weight: (lineOptions && lineOptions.weight) || 5,
+    opacity: 0.9,
+    dashArray: '8,8',
+    ...lineOptions,
+  }).addTo(map);
+  map.fitBounds(window.team13TspLine.getBounds(), { padding: [40, 40] });
+  return window.team13TspLine;
+}
+
+/**
+ * دریافت محدوده در دسترس (Isochrone) از بک‌اند.
+ * حداقل یکی از options.distance_km یا options.time_minutes الزامی است.
+ */
+async function getIsochrone(lat, lng, options) {
+  return api.isochrone(lat, lng, options);
+}
+
+/**
+ * رسم GeoJSON محدوده در دسترس (Isochrone) روی نقشه.
+ * geojson: پاسخ سرویس (FeatureCollection با geometry نوع Polygon یا LineString).
+ */
+function drawIsochroneOnMap(map, geojson, layerOptions) {
+  if (!map || typeof L === 'undefined' || !geojson || !geojson.features) return null;
+  if (window.team13IsochroneLayer && map) map.removeLayer(window.team13IsochroneLayer);
+  const style = {
+    color: (layerOptions && layerOptions.color) || '#2563eb',
+    weight: (layerOptions && layerOptions.weight) || 2,
+    opacity: 0.8,
+    fillColor: (layerOptions && layerOptions.fillColor) || '#3b82f6',
+    fillOpacity: (layerOptions && layerOptions.fillOpacity) != null ? layerOptions.fillOpacity : 0.15,
+    ...layerOptions,
+  };
+  window.team13IsochroneLayer = L.geoJSON(geojson, { style }).addTo(map);
+  if (window.team13IsochroneLayer.getBounds && window.team13IsochroneLayer.getBounds().isValid()) {
+    map.fitBounds(window.team13IsochroneLayer.getBounds(), { padding: [40, 40] });
+  }
+  return window.team13IsochroneLayer;
+}
+
