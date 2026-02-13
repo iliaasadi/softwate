@@ -88,4 +88,110 @@
       iconAnchor: [11, 11],
     });
   }
+
+  
+  function createSearchResultIcon() {
+    if (typeof L === 'undefined') return null;
+    return L.divIcon({
+      className: 'team13-search-marker',
+      html: '<span style="width:20px;height:20px;background:#2563eb;border:2px solid #1d4ed8;border-radius:50%;display:block;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></span>',
+      iconSize: [20, 20],
+      iconAnchor: [10, 10],
+    });
+  }
+
+  function createSelectedPlaceIcon() {
+    if (typeof L === 'undefined') return null;
+    return L.divIcon({
+      className: 'team13-place-marker team13-marker-selected',
+      html: '<span style="width:24px;height:24px;background:' + SAGE_GREEN + ';border:2px solid #1b4332;border-radius:50%;display:block;box-shadow:0 2px 8px rgba(64,145,108,0.5);"></span>',
+      iconSize: [24, 24],
+      iconAnchor: [12, 12],
+    });
+  }
+
+  function createSelectedEventIcon() {
+    if (typeof L === 'undefined') return null;
+    return L.divIcon({
+      className: 'team13-event-marker team13-marker-selected',
+      html: '<span style="width:22px;height:22px;background:' + SAGE_GREEN + ';border:2px solid #1b4332;border-radius:4px;display:block;box-shadow:0 2px 8px rgba(64,145,108,0.5);"></span>',
+      iconSize: [22, 22],
+      iconAnchor: [11, 11],
+    });
+  }
+
+  function createEmergencyPoiIcon() {
+    if (typeof L === 'undefined') return null;
+    return L.divIcon({
+      className: 'team13-emergency-poi-marker team13-marker-selected',
+      html: '<span style="width:26px;height:26px;background:' + SAGE_GREEN + ';border:2px solid #1b4332;border-radius:50%;display:block;box-shadow:0 2px 10px rgba(64,145,108,0.6);"></span>',
+      iconSize: [26, 26],
+      iconAnchor: [13, 13],
+    });
+  }
+
+  function createStartMarkerIcon() {
+    if (typeof L === 'undefined') return null;
+    return L.divIcon({
+      className: 'team13-route-start-marker',
+      html: '<span style="width:28px;height:28px;background:#22c55e;border:2px solid #1b4332;border-radius:50%;display:block;box-shadow:0 2px 8px rgba(0,0,0,0.25);font-size:12px;line-height:24px;text-align:center;color:#fff;font-weight:bold;">A</span>',
+      iconSize: [28, 28],
+      iconAnchor: [14, 14],
+    });
+  }
+
+  function createDestMarkerIcon() {
+    if (typeof L === 'undefined') return null;
+    return L.divIcon({
+      className: 'team13-route-dest-marker',
+      html: '<span style="width:28px;height:28px;background:#dc2626;border:2px solid #991b1b;border-radius:50%;display:block;box-shadow:0 2px 8px rgba(0,0,0,0.25);font-size:12px;line-height:24px;text-align:center;color:#fff;font-weight:bold;">B</span>',
+      iconSize: [28, 28],
+      iconAnchor: [14, 14],
+    });
+  }
+
+  /** Live user location: blue pulse marker (silent, no popup). */
+  function createUserLocationIcon() {
+    if (typeof L === 'undefined') return null;
+    return L.divIcon({
+      className: 'team13-user-location-marker',
+      html: '<span class="team13-user-location-pulse"></span><span class="team13-user-location-dot"></span>',
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
+    });
+  }
+
+  // --- Popup: Place — همان قالب پاپ‌آپ «انتخاب نقطه» برای یکپارچگی UI ---
+  function buildPlacePopupContent(p, lat, lng) {
+    var name = (p.name_fa || p.name_en || p.type_display || '').trim() || p.place_id;
+    var typeDisplay = (p.type_display || p.type || '').trim() || '—';
+    var address = (p.address || p.city || '').trim() || '—';
+    var placeId = (p.place_id || p.id || '').toString();
+    var base = (window.TEAM13_API_BASE || '/team13').replace(/\/$/, '');
+    var detailPageUrl = base + '/places/' + (placeId || '') + '/';
+    var rating = p.rating != null && !isNaN(parseFloat(p.rating)) ? parseFloat(p.rating) : null;
+    var ratingHtml = rating != null ? ' · امتیاز: ' + rating + '/۵' : '';
+    var addressLine = escapeHtml(name) + (typeDisplay !== '—' ? ' · ' + escapeHtml(typeDisplay) : '') + ratingHtml + (address !== '—' ? '<br><span class="text-muted">' + escapeHtml(address) + '</span>' : '');
+    var btnDetails = '<button type="button" class="team13-reverse-popup-btn team13-btn-place-details" data-place-id="' + escapeHtml(placeId) + '" data-lat="' + lat + '" data-lng="' + lng + '" data-name="' + escapeHtml(name) + '">جزئیات (امتیاز / نظر / عکس)</button>';
+    var linkDetailPage = '<a href="' + escapeHtml(detailPageUrl) + '" class="team13-reverse-popup-btn team13-btn-place-detail-page">صفحهٔ جزئیات مکان</a>';
+    var btnRoute = '<button type="button" class="team13-reverse-popup-btn team13-btn-route-to-place" data-lat="' + lat + '" data-lng="' + lng + '" data-name="' + escapeHtml(name) + '">مسیریابی به اینجا</button>';
+    return '<div class="team13-reverse-popup-content" dir="rtl">' +
+      '<p class="team13-reverse-popup-address">' + addressLine + '</p>' +
+      '<div class="team13-reverse-popup-actions">' + btnDetails + ' ' + linkDetailPage + ' ' + btnRoute + '</div>' +
+      '</div>';
+  }
+
+  // --- Popup: Event — همان قالب پاپ‌آپ «انتخاب نقطه» برای یکپارچگی UI ---
+  function buildEventPopupContent(e) {
+    var lat = parseFloat(e.latitude);
+    var lng = parseFloat(e.longitude);
+    var title = (e.title_fa || e.title_en || e.event_id || '').trim();
+    var timeText = (e.start_at || e.start_at_iso || '') + (e.end_at || e.end_at_iso ? ' تا ' + (e.end_at || e.end_at_iso) : '');
+    var addressLine = escapeHtml(title) + '<br><span class="text-muted">زمان: ' + escapeHtml(timeText || '—') + '</span>';
+    var routeBtn = '<button type="button" class="team13-reverse-popup-btn team13-btn-route-to-event" data-lat="' + lat + '" data-lng="' + lng + '" data-name="' + escapeHtml(title) + '">مسیریابی به رویداد</button>';
+    return '<div class="team13-reverse-popup-content" dir="rtl">' +
+      '<p class="team13-reverse-popup-address">' + addressLine + '</p>' +
+      '<div class="team13-reverse-popup-actions">' + routeBtn + '</div>' +
+      '</div>';
+  }
   }})
