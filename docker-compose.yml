@@ -1,0 +1,16 @@
+services:
+  core:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    networks:
+      - app404
+
+networks:
+  app404:
+    external: true
+    name: app404_net

@@ -1,0 +1,149 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>سامانه جامع گردشگری ایران | Iran Explorer</title>
+    <link rel="stylesheet" href="{% static 'styles/styles.css' %}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+
+    <div class="bg-pattern"></div>
+
+    <header class="main-header">
+        <div class="container header-content">
+            <div class="logo">
+                <i class="fa-solid fa-leaf"></i>
+                <div class="logo-text">
+                    <h1>ایران‌نما</h1>
+                    <span>سامانه هوشمند گردشگری</span>
+                </div>
+            </div>
+            <div class="auth-buttons">
+                {% if request.user.is_authenticated %}
+                    <form method="post" action="/auth/logout/" style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-login">خروج</button>
+                    </form>
+                {% else %}
+                    <a href="/auth/" class="btn btn-login">ورود</a>
+                    <a href="/auth/signup/" class="btn btn-login">ثبت‌نام</a>
+                {% endif %}
+            </div>
+        </div>
+    </header>
+
+    <section class="hero">
+        <div class="hero-content">
+            <h2>کاوش در طبیعت و فرهنگ ایران</h2>
+            <p>سامانه جامع خدمات گردشگری، جغرافیا و ایران‌شناسی</p>
+        </div>
+    </section>
+
+    <main class="container dashboard">
+        <div class="section-header">
+            <h3>خدمات سامانه</h3>
+            <div class="line"></div>
+        </div>
+        
+        <div class="services-grid">
+            
+            <div class="service-card">
+                <div class="card-content-wrapper">
+                    <div class="card-icon"><i class="fa-solid fa-map-location-dot"></i></div>
+                    <div class="card-info">
+                        <h3>سرویس نقشه</h3>
+                        <span>نقشه تعاملی و جغرافیای ایران</span>
+                    </div>
+                </div>
+                <div class="group-links">
+                    <a href="/team1/" class="group-btn">گروه ۱</a>
+                    <a href="/team9/" class="group-btn">گروه ۹</a>
+                </div>
+            </div>
+
+            <div class="service-card">
+                <div class="card-content-wrapper">
+                    <div class="card-icon"><i class="fa-solid fa-camera-retro"></i></div>
+                    <div class="card-info">
+                        <h3>رسانه و نظرات</h3>
+                        <span>اشتراک‌گذاری عکس و دیدگاه‌ها</span>
+                    </div>
+                </div>
+                <div class="group-links">
+                    <a href="/team7/" class="group-btn">گروه ۷</a>
+                    <a href="/team8/" class="group-btn">گروه ۸</a>
+                </div>
+            </div>
+
+            <div class="service-card">
+                <div class="card-content-wrapper">
+                    <div class="card-icon"><i class="fa-solid fa-book-atlas"></i></div>
+                    <div class="card-info">
+                        <h3>دانشنامه (ویکی)</h3>
+                        <span>اطلاعات جامع فرهنگ و تاریخ</span>
+                    </div>
+                </div>
+                <div class="group-links">
+                    <a href="/team2/" class="group-btn">گروه ۲</a>
+                    <a href="/team6/" class="group-btn">گروه ۶</a>
+                </div>
+            </div>
+
+            <div class="service-card">
+                <div class="card-content-wrapper">
+                    <div class="card-icon"><i class="fa-solid fa-star"></i></div>
+                    <div class="card-info">
+                        <h3>پیشنهاد هوشمند</h3>
+                        <span>پیشنهاد مقاصد بر اساس علایق</span>
+                    </div>
+                </div>
+                <div class="group-links">
+                    <a href="/team3/" class="group-btn">گروه ۳</a>
+                    <a href="/team5/" class="group-btn">گروه ۵</a>
+                    <a href="/team12/" class="group-btn">گروه ۱۲</a>
+                </div>
+            </div>
+
+            <div class="service-card">
+                <div class="card-content-wrapper">
+                    <div class="card-icon"><i class="fa-solid fa-hotel"></i></div>
+                    <div class="card-info">
+                        <h3>امکانات رفاهی</h3>
+                        <span>هتل‌ها، رستوران‌ها و حمل‌ونقل</span>
+                    </div>
+                </div>
+                <div class="group-links">
+                    <a href="/team4/" class="group-btn">گروه ۴</a>
+                    <a href="/team13/" class="group-btn">گروه ۱۳</a>
+                </div>
+            </div>
+
+            <div class="service-card">
+                <div class="card-content-wrapper">
+                    <div class="card-icon"><i class="fa-solid fa-route"></i></div>
+                    <div class="card-info">
+                        <h3>برنامه‌ریزی سفر</h3>
+                        <span>ساخت هوشمند برنامه سفر</span>
+                    </div>
+                </div>
+                <div class="group-links">
+                    <a href="/team10/" class="group-btn">گروه ۱۰</a>
+                    <a href="/team11/" class="group-btn">گروه ۱۱</a>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <footer class="main-footer">
+        <p>&copy; ۱۴۰۴ - پروژه مهندسی نرم‌افزار ۱ | دانشگاه صنعتی امیرکبیر</p>
+    </footer>
+
+</body>
+</html>

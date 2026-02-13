@@ -1,0 +1,55 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ورود به سامانه | ایران‌نما</title>
+    <link rel="stylesheet" href="{% static 'styles/styles.css' %}">
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="auth-body">
+
+    <div class="bg-pattern"></div>
+
+    <div class="auth-card">
+        <div class="logo" style="justify-content: center; margin-bottom: 20px;">
+            <i class="fa-solid fa-leaf"></i>
+            <div class="logo-text">
+                <h1>ایران‌نما</h1>
+            </div>
+        </div>
+
+        <h2>ورود به حساب کاربری</h2>
+
+        <div class="form-alert {% if error %}is-visible{% endif %}">
+            {% if error %}{{ error }}{% endif %}
+        </div>
+
+        <form method="post" action="/auth/">
+            {% csrf_token %}
+            <div class="form-group">
+                <label>ایمیل</label>
+                <input type="text" name="email" placeholder="مثال: ali.rezai@gmail.com" required>
+            </div>
+
+            <div class="form-group">
+                <label>رمز عبور</label>
+                <input type="password" name="password" placeholder="********" required>
+            </div>
+
+            <button type="submit" class="auth-btn btn-submit-login">ورود</button>
+        </form>
+
+        <div class="auth-links">
+            <p>حساب کاربری ندارید؟ <a href="/auth/signup/">ثبت‌نام کنید</a></p>
+        </div>
+
+        <a href="../index.html" class="back-home">
+            <i class="fa-solid fa-arrow-right"></i> بازگشت به صفحه اصلی
+        </a>
+    </div>
+
+</body>
+</html>
