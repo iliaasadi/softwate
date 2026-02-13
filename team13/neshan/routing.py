@@ -1,3 +1,8 @@
+# مسیریابی نشان — با ترافیک، بدون ترافیک، عابر پیاده.
+# با ترافیک: https://platform.neshan.org/docs/api/routing-category/routing/
+# بدون ترافیک: https://platform.neshan.org/docs/api/routing-category/noTraffic-routing-api/
+# عابر پیاده: https://platform.neshan.org/docs/api/routing-category/routing_pedestrian/
+
 import logging
 from .config import (
     get_api_key,
