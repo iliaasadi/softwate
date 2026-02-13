@@ -34,4 +34,7 @@ urlpatterns = [
     path("admin/reject-route/<uuid:contribution_id>/", views.team13_admin_reject_route, name="team13_admin_reject_route"),
     path("admin/approve-comment/<uuid:comment_id>/", views.team13_admin_approve_comment, name="team13_admin_approve_comment"),
     path("admin/reject-comment/<uuid:comment_id>/", views.team13_admin_reject_comment, name="team13_admin_reject_comment"),
+    path("admin/approve-image/<uuid:image_id>/", views.team13_admin_approve_image, name="team13_admin_approve_image"),
+    path("admin/reject-image/<uuid:image_id>/", views.team13_admin_reject_image, name="team13_admin_reject_image"),
+    path("admin/add-admin/", views.team13_admin_add_admin, name="team13_admin_add_admin"),
 ]
