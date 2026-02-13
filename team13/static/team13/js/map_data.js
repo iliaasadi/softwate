@@ -243,4 +243,64 @@
       window.team13CityEventLayerGroup = null;
     }
   }
+  
+  /**
+   * Apply city-based event filter: clear event markers on map, filter by city, render filtered markers, update sidebar, optional center.
+   * @param {string|null} cityName - null = show all events in sidebar only (no event markers on map)
+   * @param {number|null} centerLat - optional center for map
+   * @param {number|null} centerLng - optional center for map
+   */
+  function applyEventCityFilter(cityName, centerLat, centerLng) {
+    var map = getMap();
+    var events = window._team13EventsCache || [];
+    if (!map || !L) return;
+
+    var filtered = events;
+    if (cityName && String(cityName).trim()) {
+      var cityNorm = String(cityName).trim();
+      filtered = events.filter(function (e) {
+        var c = (e.city && String(e.city).trim()) || '';
+        return c === cityNorm;
+      });
+    }
+
+    if (window.team13CityEventLayerGroup) {
+      map.removeLayer(window.team13CityEventLayerGroup);
+      window.team13CityEventLayerGroup = null;
+    }
+
+    injectEventsList(filtered);
+
+    if (!cityName || !String(cityName).trim()) {
+      window.allMarkers = {};
+      addPlaceMarkers(map, window._team13PlacesCache || []);
+      addEventMarkers(map, window._team13EventsCache || []);
+    } else if (filtered.length > 0) {
+      var layer = L.layerGroup();
+      var icon = createEventIcon();
+      var allMarkers = Object.assign({}, window.allMarkers || {});
+      filtered.forEach(function (e) {
+        var lat = parseFloat(e.latitude);
+        var lng = parseFloat(e.longitude);
+        if (isNaN(lat) || isNaN(lng)) return;
+        var id = 'event-' + (e.event_id || e.id || String(lat) + ',' + String(lng));
+        var popupContent = buildEventPopupContent(e);
+        var m = L.marker([lat, lng], { icon: icon }).bindPopup(popupContent);
+        layer.addLayer(m);
+        allMarkers[id] = m;
+        if (window._team13PoiIconsVisible && typeof m.addTo === 'function') m.addTo(map);
+      });
+      window.allMarkers = allMarkers;
+      if (window._team13PoiIconsVisible) layer.addTo(map);
+      window.team13CityEventLayerGroup = layer;
+      if (centerLat != null && centerLng != null && !isNaN(centerLat) && !isNaN(centerLng)) {
+        flyTo(map, centerLat, centerLng, 12);
+      } else {
+        var first = filtered[0];
+        flyTo(map, parseFloat(first.latitude), parseFloat(first.longitude), 11);
+      }
+    } else if (centerLat != null && centerLng != null && !isNaN(centerLat) && !isNaN(centerLng)) {
+      flyTo(map, centerLat, centerLng, 12);
+    }
+  }
   }})
