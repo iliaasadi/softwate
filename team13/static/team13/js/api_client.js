@@ -297,3 +297,82 @@ function drawStraightRouteLine(map, startLat, startLng, destLat, destLng, routeG
   map.fitBounds(window.currentPath.getBounds(), { padding: [40, 40] });
 }
 
+
+/**
+ * مسیر از موقعیت کاربر تا نقطهٔ مقصد — ETA از بک‌اند، رسم خط مستقیم.
+ * @param {object} [options] - اختیاری: { no_traffic: true, bearing: 0-360 } برای سرویس بدون ترافیک نشان
+ */
+async function getRouteFromUserToPoint(destinationCoords, serviceType, options) {
+  const map = window.team13MapInstance;
+  if (!map || typeof L === 'undefined') throw new Error('Map not ready');
+
+  const destLat = destinationCoords && typeof destinationCoords.lat === 'number' ? destinationCoords.lat : parseFloat(destinationCoords?.lat);
+  const destLng = destinationCoords && typeof destinationCoords.lng === 'number' ? destinationCoords.lng : parseFloat(destinationCoords?.lng);
+  if (isNaN(destLat) || isNaN(destLng)) throw new Error('Invalid destination coordinates');
+
+  const position = await new Promise((resolve, reject) => {
+    if (!navigator.geolocation) return reject(new Error('Geolocation not supported'));
+    navigator.geolocation.getCurrentPosition(resolve, (e) => reject(new Error(e.message || 'موقعیت یافت نشد')), { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
+  });
+  const startLat = position.coords.latitude;
+  const startLng = position.coords.longitude;
+  const travelMode = toTravelMode(serviceType);
+  const routeParams = {
+    source_lat: String(startLat),
+    source_lng: String(startLng),
+    source_name: 'موقعیت من',
+    dest_lat: String(destLat),
+    dest_lng: String(destLng),
+    dest_name: 'مقصد',
+    travel_mode: travelMode,
+  };
+  if (options && options.no_traffic && travelMode === 'car') routeParams.no_traffic = '1';
+  if (options && options.bearing != null && options.bearing >= 0 && options.bearing <= 360) routeParams.bearing = String(options.bearing);
+
+  const data = await fetchData('routes/', routeParams);
+  drawStraightRouteLine(map, startLat, startLng, destLat, destLng, data.route_geometry || null);
+  const distanceKm = data.distance_km != null ? Number(data.distance_km) : null;
+  let durationMinutes = data.eta_minutes != null ? Number(data.eta_minutes) : null;
+  const type = (travelMode === 'walk' ? 'walking' : travelMode === 'bicycle' ? 'bicycle' : travelMode === 'transit' ? 'transit' : 'driving');
+  if (durationMinutes != null && travelMode === 'bicycle') durationMinutes = Math.round(durationMinutes * 1.55);
+  if (durationMinutes != null && (travelMode === 'walk' || travelMode === 'walking')) durationMinutes = Math.round(durationMinutes * 3);
+  return { distanceKm, durationMinutes, serviceType: type, eta_source: data.eta_source };
+}
+
+/**
+ * مسیر بین دو نقطه — ETA از بک‌اند، رسم خط مستقیم.
+ * @param {object} [options] - اختیاری: { no_traffic: true, bearing: 0-360 } برای سرویس بدون ترافیک نشان
+ */
+async function getRouteFromTo(startCoords, destCoords, serviceType, options) {
+  const map = window.team13MapInstance;
+  if (!map || typeof L === 'undefined') throw new Error('Map not ready');
+
+  const startLat = startCoords && typeof startCoords.lat === 'number' ? startCoords.lat : parseFloat(startCoords?.lat);
+  const startLng = startCoords && typeof startCoords.lng === 'number' ? startCoords.lng : parseFloat(startCoords?.lng);
+  const destLat = destCoords && typeof destCoords.lat === 'number' ? destCoords.lat : parseFloat(destCoords?.lat);
+  const destLng = destCoords && typeof destCoords.lng === 'number' ? destCoords.lng : parseFloat(destCoords?.lng);
+  if (isNaN(startLat) || isNaN(startLng) || isNaN(destLat) || isNaN(destLng)) throw new Error('Invalid start or destination coordinates');
+
+  const travelMode = toTravelMode(serviceType);
+  const routeParams = {
+    source_lat: String(startLat),
+    source_lng: String(startLng),
+    source_name: 'مبدأ',
+    dest_lat: String(destLat),
+    dest_lng: String(destLng),
+    dest_name: 'مقصد',
+    travel_mode: travelMode,
+  };
+  if (options && options.no_traffic && travelMode === 'car') routeParams.no_traffic = '1';
+  if (options && options.bearing != null && options.bearing >= 0 && options.bearing <= 360) routeParams.bearing = String(options.bearing);
+
+  const data = await fetchData('routes/', routeParams);
+  drawStraightRouteLine(map, startLat, startLng, destLat, destLng, data.route_geometry || null);
+  const distanceKm = data.distance_km != null ? Number(data.distance_km) : null;
+  let durationMinutes = data.eta_minutes != null ? Number(data.eta_minutes) : null;
+  const type = (travelMode === 'walk' ? 'walking' : travelMode === 'bicycle' ? 'bicycle' : travelMode === 'transit' ? 'transit' : 'driving');
+  if (durationMinutes != null && travelMode === 'bicycle') durationMinutes = Math.round(durationMinutes * 4.55);
+  if (durationMinutes != null && (travelMode === 'walk' || travelMode === 'walking')) durationMinutes = Math.round(durationMinutes * 3);
+  return { distanceKm, durationMinutes, serviceType: type, eta_source: data.eta_source };
+}
+
