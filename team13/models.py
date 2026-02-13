@@ -146,3 +146,55 @@ class Image(models.Model):
     def __str__(self):
         return f"{self.target_type}:{self.target_id} — {self.rating}"
 
+class HotelDetails(models.Model):
+    """جزئیات هتل (یک به یک با Place)."""
+
+    place = models.OneToOneField(
+        Place, on_delete=models.CASCADE, primary_key=True, related_name="hotel_details", db_column="place_id"
+    )
+    stars = models.PositiveSmallIntegerField(
+        null=True, blank=True, validators=[MinValueValidator(1), MaxValueValidator(5)]
+    )
+    price_range = models.CharField(max_length=64, blank=True)  # مثلاً حداکثر قیمت به تومان
+
+    class Meta:
+        app_label = "team13"
+        db_table = "team13_hotel_details"
+
+    def __str__(self):
+        return f"Hotel {self.place_id} — {self.stars}*"
+
+
+class RestaurantDetails(models.Model):
+    """جزئیات رستوران."""
+
+    place = models.OneToOneField(
+        Place, on_delete=models.CASCADE, primary_key=True, related_name="restaurant_details", db_column="place_id"
+    )
+    cuisine = models.CharField(max_length=128, blank=True)
+    avg_price = models.PositiveIntegerField(null=True, blank=True)
+
+    class Meta:
+        app_label = "team13"
+        db_table = "team13_restaurant_details"
+
+    def __str__(self):
+        return f"Restaurant {self.place_id} — {self.cuisine}"
+
+
+class MuseumDetails(models.Model):
+    """جزئیات موزه."""
+
+    place = models.OneToOneField(
+        Place, on_delete=models.CASCADE, primary_key=True, related_name="museum_details", db_column="place_id"
+    )
+    open_at = models.TimeField(null=True, blank=True)
+    close_at = models.TimeField(null=True, blank=True)
+    ticket_price = models.PositiveIntegerField(null=True, blank=True)
+
+    class Meta:
+        app_label = "team13"
+        db_table = "team13_museum_details"
+
+    def __str__(self):
+        return f"Museum {self.place_id}"
