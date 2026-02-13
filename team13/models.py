@@ -119,3 +119,30 @@ class Image(models.Model):
 
     def __str__(self):
         return f"{self.target_type}:{self.target_id}"
+    
+    class Comment(models.Model):
+    """نظر/امتیاز برای یک مکان یا رویداد."""
+
+    class TargetType(models.TextChoices):
+        PLACE = "place", "مکان"
+        EVENT = "event", "رویداد"
+
+    comment_id = models.UUIDField(
+        primary_key=True, default=uuid.uuid4, editable=False, db_column="comment_id"
+    )
+    target_type = models.CharField(max_length=16, choices=TargetType.choices)
+    target_id = models.UUIDField()
+    rating = models.PositiveSmallIntegerField(
+        null=True, blank=True, validators=[MinValueValidator(1), MaxValueValidator(5)]
+    )
+    body = models.TextField(blank=True)  # متن نظر (کامنت)
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_approved = models.BooleanField(default=True, db_column="is_approved")  # امتیاز بدون متن فوراً نمایش؛ نظر متنی پس از تأیید ادمین
+
+    class Meta:
+        app_label = "team13"
+        db_table = "team13_comments"
+
+    def __str__(self):
+        return f"{self.target_type}:{self.target_id} — {self.rating}"
+
