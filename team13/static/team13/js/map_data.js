@@ -487,4 +487,177 @@
       }, true);
     }
   }
+
+  
+  // --- User location then route + ETA ---
+  function requestRouteFromUserTo(targetLat, targetLng) {
+    setRouteLoading(true);
+    hideRouteInfo();
+    getCurrentPosition()
+      .then(function (pos) {
+        var userLat = pos.coords.latitude;
+        var userLng = pos.coords.longitude;
+        return fetchRouteAndEta(userLat, userLng, targetLat, targetLng);
+      })
+      .then(function (result) {
+        setRouteLoading(false);
+        if (result && result.polyline) {
+          showRouteInfo(result.distanceText, result.etaText);
+        }
+      })
+      .catch(function (err) {
+        setRouteLoading(false);
+        showRouteInfo('خطا: ' + (err && err.message ? err.message : 'موقعیت یا مسیر در دسترس نیست'), '');
+      });
+  }
+
+  function getCurrentPosition() {
+    return new Promise(function (resolve, reject) {
+      if (!navigator.geolocation) return reject(new Error('Geolocation not supported'));
+      navigator.geolocation.getCurrentPosition(
+        resolve,
+        function (e) {
+          var msg = e.code === 1 ? 'دسترسی به موقعیت رد شد' : e.code === 2 ? 'موقعیت در دسترس نیست' : e.code === 3 ? 'زمان درخواست تمام شد' : (e.message || 'موقعیت یافت نشد');
+          reject(new Error(msg));
+        },
+        { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+      );
+    });
+  }
+
+  function setRouteLoading(show) {
+    var el = document.getElementById('team13-route-loading');
+    if (el) el.hidden = !show;
+  }
+
+  function showRouteInfo(distanceText, etaText) {
+    var box = document.getElementById('team13-route-info');
+    var distEl = document.getElementById('team13-route-distance');
+    var etaEl = document.getElementById('team13-route-eta');
+    if (box) box.hidden = false;
+    if (distEl) distEl.textContent = distanceText || '';
+    if (etaEl) etaEl.textContent = etaText || '';
+  }
+
+  function hideRouteInfo() {
+    var box = document.getElementById('team13-route-info');
+    if (box) box.hidden = true;
+  }
+
+  function fetchRouteAndEta(originLat, originLng, destLat, destLng, options) {
+    var map = getMap();
+    if (!map || typeof L === 'undefined') return Promise.reject(new Error('Map not ready'));
+
+    var base = (window.TEAM13_API_BASE || '/team13').replace(/\/$/, '');
+    var travelMode = (options && options.travel_mode) ? String(options.travel_mode).toLowerCase() : 'car';
+    if (['car', 'walk', 'transit', 'motorcycle'].indexOf(travelMode) === -1) travelMode = 'car';
+    var params = new URLSearchParams({
+      format: 'json',
+      source_lat: String(originLat),
+      source_lng: String(originLng),
+      source_name: 'مبدأ',
+      dest_lat: String(destLat),
+      dest_lng: String(destLng),
+      dest_name: 'مقصد',
+      travel_mode: travelMode,
+    });
+    if (options && options.no_traffic && travelMode === 'car') params.set('no_traffic', '1');
+    if (options && options.bearing != null && options.bearing >= 0 && options.bearing <= 360) params.set('bearing', String(options.bearing));
+    var url = base + '/routes/?' + params.toString();
+
+    return fetch(url, { method: 'GET', headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        var latlngs = [[originLat, originLng], [destLat, destLng]];
+        if (data.route_geometry && window.Team13Api && typeof window.Team13Api.decodeRouteGeometry === 'function') {
+          var decoded = window.Team13Api.decodeRouteGeometry(data.route_geometry);
+          if (decoded && decoded.length > 0) latlngs = decoded;
+        }
+        var distanceKm = data.distance_km != null ? Number(data.distance_km) : null;
+        var etaMinutes = data.eta_minutes != null ? Number(data.eta_minutes) : null;
+        var durationSec = etaMinutes != null ? etaMinutes * 60 : null;
+        return { latlngs: latlngs, distanceKm: distanceKm, durationSec: durationSec };
+      })
+      .then(function (out) {
+        if (window.team13RouteLine && map) map.removeLayer(window.team13RouteLine);
+        window.team13RouteLine = L.polyline(out.latlngs, {
+          color: SAGE_GREEN,
+          weight: 5,
+          lineJoin: 'round',
+          lineCap: 'round',
+          smoothFactor: 1,
+        }).addTo(map);
+        map.fitBounds(window.team13RouteLine.getBounds(), { padding: [40, 40] });
+
+        var distanceText = out.distanceKm != null ? 'فاصله: ' + (Math.round(out.distanceKm * 10) / 10) + ' کیلومتر' : '';
+        var etaText = out.durationSec != null ? 'زمان تقریبی: ' + formatDuration(out.durationSec) : '';
+        return { polyline: window.team13RouteLine, distanceText: distanceText, etaText: etaText };
+      });
+  }
+
+  function parseRouteGeometry(data, oLat, oLng, tLat, tLng) {
+    var latlngs = [];
+    var route = data.route || (data.routes && data.routes[0]);
+    if (route && route.legs && Array.isArray(route.legs)) {
+      route.legs.forEach(function (leg) {
+        if (leg.steps && Array.isArray(leg.steps)) {
+          leg.steps.forEach(function (step) {
+            if (step.polyline && Array.isArray(step.polyline)) {
+              step.polyline.forEach(function (c) {
+                if (Array.isArray(c) && c.length >= 2) latlngs.push([c[1], c[0]]);
+              });
+            }
+          });
+        }
+      });
+    }
+    if (latlngs.length < 2 && data.waypoints && Array.isArray(data.waypoints)) {
+      data.waypoints.forEach(function (p) {
+        if (Array.isArray(p)) latlngs.push([p[1], p[0]]);
+        else if (p && typeof p.lat !== 'undefined') latlngs.push([p.lat, p.lng]);
+      });
+    }
+    if (latlngs.length < 2 && data.routes && data.routes[0] && data.routes[0].geometry && data.routes[0].geometry.coordinates) {
+      latlngs = data.routes[0].geometry.coordinates.map(function (c) { return [c[1], c[0]]; });
+    }
+    if (latlngs.length < 2) latlngs = [[oLat, oLng], [tLat, tLng]];
+    return latlngs;
+  }
+
+  function parseRouteDistance(data) {
+    var route = data.route || (data.routes && data.routes[0]);
+    if (route && typeof route.distance === 'number') return route.distance / 1000;
+    if (route && route.legs && route.legs[0] && typeof route.legs[0].distance === 'number') {
+      var d = 0;
+      route.legs.forEach(function (leg) { d += leg.distance || 0; });
+      return d / 1000;
+    }
+    return null;
+  }
+
+  function parseRouteDuration(data) {
+    var route = data.route || (data.routes && data.routes[0]);
+    if (route && typeof route.duration === 'number') return route.duration;
+    if (route && route.legs && route.legs[0] && typeof route.legs[0].duration === 'number') {
+      var d = 0;
+      route.legs.forEach(function (leg) { d += leg.duration || 0; });
+      return d;
+    }
+    return null;
+  }
+
+  function parseEtaDuration(data) {
+    if (data && typeof data.duration === 'number') return data.duration;
+    if (data && data.routes && data.routes[0] && typeof data.routes[0].duration === 'number') return data.routes[0].duration;
+    return null;
+  }
+
+  function formatDuration(seconds) {
+    if (seconds < 60) return seconds + ' ثانیه';
+    var m = Math.floor(seconds / 60);
+    var s = Math.round(seconds % 60);
+    if (s === 0) return m + ' دقیقه';
+    return m + ' دقیقه و ' + s + ' ثانیه';
+  }
+
   }})
