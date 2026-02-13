@@ -314,4 +314,177 @@
       eventsList.insertAdjacentHTML('beforeend', renderEventCard(e));
     });
   }
+
+
+
+  
+  /** مکان‌های دیتابیس را با طول و عرض جغرافیایی روی نقشه نمایش می‌دهد. هر مارکر با bindPopup به پاپ‌آپ متصل است؛ کلیک روی مارکر پاپ‌آپ را باز می‌کند (از طریق رفتار پیش‌فرض L.marker در wrapper). */
+  function addPlaceMarkers(map, places) {
+    if (!map || !L) return;
+    var allMarkers = Object.assign({}, window.allMarkers || {});
+    (places || []).forEach(function (p) {
+      var lat = parseFloat(p.latitude);
+      var lng = parseFloat(p.longitude);
+      if (isNaN(lat) || isNaN(lng)) return;
+      var id = 'place-' + (p.place_id || p.id || String(lat) + ',' + String(lng));
+      var popupContent = buildPlacePopupContent(p, lat, lng);
+      var icon = createPlaceIcon(p.type || p.category);
+      var m = L.marker([lat, lng], { icon: icon }).bindPopup(popupContent);
+      allMarkers[id] = m;
+      if (window._team13PoiIconsVisible) m.addTo(map);
+    });
+    window.allMarkers = allMarkers;
+  }
+
+  /** رویدادهای دیتابیس را با طول و عرض جغرافیایی روی نقشه نمایش می‌دهد. */
+  function addEventMarkers(map, events) {
+    if (!map || !L) return;
+    var icon = createEventIcon();
+    var allMarkers = Object.assign({}, window.allMarkers || {});
+    (events || []).forEach(function (e) {
+      var lat = parseFloat(e.latitude);
+      var lng = parseFloat(e.longitude);
+      if (isNaN(lat) || isNaN(lng)) return;
+      var id = 'event-' + (e.event_id || e.id || String(lat) + ',' + String(lng));
+      var popupContent = buildEventPopupContent(e);
+      var m = L.marker([lat, lng], { icon: icon }).bindPopup(popupContent);
+      allMarkers[id] = m;
+      if (window._team13PoiIconsVisible) m.addTo(map);
+    });
+    window.allMarkers = allMarkers;
+  }
+
+  function clearTemporaryMapItems(map) {
+    if (!map) return;
+    if (window.currentlyShownPoiMarker) {
+      map.removeLayer(window.currentlyShownPoiMarker);
+      window.currentlyShownPoiMarker = null;
+    }
+    if (searchResultMarker && map.hasLayer(searchResultMarker)) {
+      map.removeLayer(searchResultMarker);
+      searchResultMarker = null;
+    }
+    if (favoritePickMarker && map.hasLayer(favoritePickMarker)) {
+      map.removeLayer(favoritePickMarker);
+      favoritePickMarker = null;
+    }
+    if (window.emergencyPoiMarker && map.hasLayer(window.emergencyPoiMarker)) {
+      map.removeLayer(window.emergencyPoiMarker);
+      window.emergencyPoiMarker = null;
+    }
+    var routeLayer = window.currentPath || window.routeLayer || window.currentRoute || window.team13RouteLine;
+    if (routeLayer && map.hasLayer(routeLayer)) {
+      map.removeLayer(routeLayer);
+    }
+    window.currentPath = null;
+    window.routeLayer = null;
+    window.currentRoute = null;
+    window.team13RouteLine = null;
+  }
+
+  function showPoiMarkerById(map, id, lat, lng, isPlace) {
+    var allMarkers = window.allMarkers || {};
+    var marker = allMarkers[id];
+    if (!marker) return;
+    clearTemporaryMapItems(map);
+    marker.setIcon(isPlace ? createSelectedPlaceIcon() : createSelectedEventIcon());
+    marker.addTo(map);
+    window.currentlyShownPoiMarker = marker;
+    flyTo(map, lat, lng, 15);
+    marker.openPopup();
+  }
+
+  function runRouteToPoint(lat, lng, name) {
+    if (isNaN(lat) || isNaN(lng)) return;
+    setRouteLoading(true);
+    if (window.Team13Api && typeof window.Team13Api.getRouteFromTo === 'function') {
+      getCurrentPosition()
+        .then(function (pos) {
+          var userLat = pos.coords.latitude;
+          var userLng = pos.coords.longitude;
+          switchToRoutesTabAndSetRoute(userLat, userLng, lat, lng, name || 'مقصد', 'driving');
+          setRouteLoading(false);
+        })
+        .catch(function () {
+          setDestFromCoords(lat, lng, name || '');
+          var tabBtn = document.querySelector('[data-tab="routes"]');
+          if (tabBtn) tabBtn.click();
+          setRouteLoading(false);
+          if (window.showToast) window.showToast('مقصد تنظیم شد. مبدا را انتخاب کنید.');
+        });
+    } else if (window.Team13Api && typeof window.Team13Api.getRouteFromUserToPoint === 'function') {
+      window.Team13Api.getRouteFromUserToPoint({ lat: lat, lng: lng }, 'driving')
+        .then(function (r) {
+          setRouteLoading(false);
+          if (typeof window.updateRouteInfoBox === 'function') window.updateRouteInfoBox(r);
+          var distStr = r && r.distanceKm != null ? (Math.round(r.distanceKm * 10) / 10) + ' کیلومتر' : '';
+          var timeStr = r && r.durationMinutes != null ? r.durationMinutes + ' دقیقه' : '';
+          showRouteInfo('فاصله: ' + distStr, 'زمان تقریبی: ' + timeStr);
+        })
+        .catch(function (err) {
+          setRouteLoading(false);
+          showRouteInfo('خطا: ' + (err && err.message ? err.message : 'مسیر ناموفق'), '');
+        });
+    } else {
+      requestRouteFromUserTo(lat, lng);
+    }
+  }
+
+  function bindRouteButtonInPopups(map) {
+    if (!map) return;
+    function bindRouteBtn(btn) {
+      if (!btn) return;
+      btn.onclick = function () {
+        var lat = parseFloat(btn.getAttribute('data-lat'));
+        var lng = parseFloat(btn.getAttribute('data-lng'));
+        var name = (btn.getAttribute('data-name') || '').trim();
+        runRouteToPoint(lat, lng, name);
+      };
+    }
+    map.on('popupopen', function (e) {
+      var popup = e.popup;
+      var el = popup && popup.getElement && popup.getElement();
+      if (!el) return;
+      bindRouteBtn(el.querySelector('.team13-btn-route-to-place'));
+      bindRouteBtn(el.querySelector('.team13-btn-route-to-event'));
+      bindRouteBtn(el.querySelector('.team13-btn-discovery-route'));
+      var btnDetails = el.querySelector('.team13-btn-place-details');
+      if (btnDetails && typeof window.Team13OpenPlaceActionsModal === 'function') {
+        btnDetails.onclick = function () {
+          var placeId = btnDetails.getAttribute('data-place-id');
+          var lat = parseFloat(btnDetails.getAttribute('data-lat'));
+          var lng = parseFloat(btnDetails.getAttribute('data-lng'));
+          var name = (btnDetails.getAttribute('data-name') || '').trim() || 'مکان';
+          if (placeId) window.Team13OpenPlaceActionsModal(placeId, name, lat, lng);
+        };
+      }
+    });
+    if (!window._team13PopupDelegationBound) {
+      window._team13PopupDelegationBound = true;
+      document.addEventListener('click', function popupButtonDelegation(ev) {
+        var target = ev.target;
+        var routeBtn = target.closest && (target.closest('.team13-btn-route-to-place') || target.closest('.team13-btn-route-to-event') || target.closest('.team13-btn-discovery-route'));
+        if (routeBtn) {
+          var lat = parseFloat(routeBtn.getAttribute('data-lat'));
+          var lng = parseFloat(routeBtn.getAttribute('data-lng'));
+          var name = (routeBtn.getAttribute('data-name') || '').trim();
+          runRouteToPoint(lat, lng, name);
+          ev.preventDefault();
+          ev.stopPropagation();
+        }
+        var detailsBtn = target.closest && target.closest('.team13-btn-place-details');
+        if (detailsBtn && typeof window.Team13OpenPlaceActionsModal === 'function') {
+          var placeId = detailsBtn.getAttribute('data-place-id');
+          var lat = parseFloat(detailsBtn.getAttribute('data-lat'));
+          var lng = parseFloat(detailsBtn.getAttribute('data-lng'));
+          var name = (detailsBtn.getAttribute('data-name') || '').trim() || 'مکان';
+          if (placeId) {
+            window.Team13OpenPlaceActionsModal(placeId, name, lat, lng);
+            ev.preventDefault();
+            ev.stopPropagation();
+          }
+        }
+      }, true);
+    }
+  }
   }})
