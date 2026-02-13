@@ -477,3 +477,67 @@ function drawIsochroneOnMap(map, geojson, layerOptions) {
   return window.team13IsochroneLayer;
 }
 
+
+
+/**
+ * نگاشت نقاط خام (مثلاً GPS) به مسیر روی نقشه (Map Matching).
+ * path: رشتهٔ lat,lng|lat,lng|... یا آرایهٔ [[lat,lng], ...].
+ */
+async function getMapMatching(path) {
+  return api.mapMatching(path);
+}
+
+/**
+ * رسم مسیر نگاشت‌شده (Map Matching) روی نقشه.
+ * data: پاسخ سرویس { snappedPoints, geometry }؛ geometry = Encoded Polyline.
+ */
+function drawMapMatchedRouteOnMap(map, data, lineOptions) {
+  if (!map || typeof L === 'undefined' || !data) return null;
+  let latlngs = null;
+  if (data.geometry && typeof decodeRouteGeometry === 'function') {
+    latlngs = decodeRouteGeometry({ overview_polyline: { points: data.geometry } });
+  }
+  if ((!latlngs || latlngs.length < 2) && data.snappedPoints && data.snappedPoints.length >= 2) {
+    latlngs = data.snappedPoints.map(p => {
+      const loc = p.location;
+      return Array.isArray(loc) ? [loc[0], loc[1]] : [loc.lat, loc.lng];
+    });
+  }
+  if (!latlngs || latlngs.length < 2) return null;
+  if (window.team13MapMatchingLine && map) map.removeLayer(window.team13MapMatchingLine);
+  window.team13MapMatchingLine = L.polyline(latlngs, {
+    color: (lineOptions && lineOptions.color) || '#059669',
+    weight: (lineOptions && lineOptions.weight) || 5,
+    opacity: 0.9,
+    ...lineOptions,
+  }).addTo(map);
+  map.fitBounds(window.team13MapMatchingLine.getBounds(), { padding: [40, 40] });
+  return window.team13MapMatchingLine;
+}
+
+if (typeof window !== 'undefined') {
+  window.Team13Api = {
+    fetchData,
+    getCsrfToken,
+    postRating,
+    postJson,
+    api,
+    loadMapData,
+    emergency: (api && api.emergency) ? api.emergency.bind(api) : undefined,
+    getRouteFromUserToPoint,
+    getRouteFromTo,
+    getMapirRoute: getRouteFromUserToPoint,
+    getMapirRouteFromTo: getRouteFromTo,
+    getTspOrder,
+    drawTspOrderOnMap,
+    getIsochrone,
+    drawIsochroneOnMap,
+    getMapMatching,
+    drawMapMatchedRouteOnMap,
+    findNearest,
+    reverseGeocode,
+    geocode,
+    getCityFromCoords,
+    decodeRouteGeometry,
+  };
+}
