@@ -27,4 +27,37 @@
     var div = document.createElement('div');
     div.textContent = s;
     return div.innerHTML;
+
+     var POI_ICON_MAP = {
+    food: { emoji: '🍴', color: '#f97316', label: 'رستوران' },
+    restaurant: { emoji: '🍴', color: '#f97316', label: 'رستوران' },
+    hotel: { emoji: '🏨', color: '#2563eb', label: 'هتل' },
+    hospital: { emoji: '🏥', color: '#dc2626', label: 'بیمارستان' },
+    museum: { emoji: '🏛️', color: '#92400e', label: 'موزه' },
+    entertainment: { emoji: '🎡', color: '#16a34a', label: 'تفریحی' },
+    gym: { emoji: '🏋️', color: '#059669', label: 'ورزشگاه' },
+    other: { emoji: '📍', color: SAGE_GREEN, label: 'سایر' },
+  };
+
+  function getPoiIconConfig(type) {
+    var t = (type || '').toLowerCase().trim();
+    return POI_ICON_MAP[t] || POI_ICON_MAP.other;
+  }
+
+  function createPlaceIcon(type) {
+    if (typeof L === 'undefined') return null;
+    var cfg = getPoiIconConfig(type);
+    var html = '<span class="team13-poi-pin" style="' +
+      'width:32px;height:32px;background:' + cfg.color + ';' +
+      'border:2px solid #fff;border-radius:50%;' +
+      'box-shadow:0 3px 10px rgba(0,0,0,0.25);' +
+      'display:flex;align-items:center;justify-content:center;' +
+      'font-size:16px;line-height:1;">' + cfg.emoji + '</span>';
+    return L.divIcon({
+      className: 'team13-place-marker team13-poi-marker',
+      html: html,
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
+    });
+  }
   }})
