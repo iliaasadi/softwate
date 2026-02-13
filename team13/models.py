@@ -38,3 +38,22 @@ class Place(models.Model):
 
     def __str__(self):
         return f"{self.get_type_display()} — {self.city or 'بدون شهر'}"
+    
+class PlaceTranslation(models.Model):
+    """ترجمه نام و توضیح مکان (چندزبانگی)."""
+
+    place = models.ForeignKey(
+        Place, on_delete=models.CASCADE, related_name="translations", db_column="place_id"
+    )
+    lang = models.CharField(max_length=2, choices=[("fa", "فارسی"), ("en", "English")])
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+
+    class Meta:
+        app_label = "team13"
+        db_table = "team13_place_translations"
+        unique_together = [("place", "lang")]
+
+    def __str__(self):
+        return f"{self.place_id} ({self.lang})"
+
