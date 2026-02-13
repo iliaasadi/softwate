@@ -1,3 +1,7 @@
+# محدوده در دسترس (Isochrone) نشان — محدوده قابل دسترسی بر اساس زمان یا مسافت.
+# مستندات: https://platform.neshan.org/docs/api/routing-category/isochrone/
+# Endpoint: GET https://api.neshan.org/v1/isochrone
+
 import logging
 from .config import get_api_key, is_configured, NESHAN_API_BASE, NESHAN_ISOCHRONE_PATH
 

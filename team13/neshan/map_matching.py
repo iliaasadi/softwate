@@ -1,3 +1,8 @@
+# نگاشت نقطه بر نقشه (Map Matching) نشان — نگاشت نقاط خام (مثلاً GPS) به مسیر واقعی روی نقشه.
+# مستندات: https://platform.neshan.org/docs/api/routing-category/map-matching/
+# Endpoint: POST https://api.neshan.org/v3/map-matching
+# Body: JSON { "path": "lat1,lng1|lat2,lng2|..." } — حداقل ۲، حداکثر ۱۰۰۰ نقطه.
+
 import logging
 from .config import get_api_key, is_configured, NESHAN_API_BASE, NESHAN_MAP_MATCHING_PATH
 

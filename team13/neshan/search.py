@@ -1,3 +1,8 @@
+# جستجوی مکان‌مبنا (Search API) نشان — بر اساس نقطه مرجع و عبارت جستجو.
+# مستندات: https://platform.neshan.org/docs/api/search-category/search/
+# Endpoint: GET https://api.neshan.org/v1/search
+# پارامترهای اجباری: term، lat، lng. حداکثر ۳۰ نتیجه در هر درخواست.
+
 import logging
 from .config import get_api_key, is_configured, NESHAN_API_BASE, NESHAN_SEARCH_PATH
 

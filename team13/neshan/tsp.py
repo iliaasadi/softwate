@@ -1,3 +1,7 @@
+# مسیریابی فروشنده دوره‌گرد (TSP) نشان — بهینه‌سازی ترتیب بازدید از چند نقطه.
+# مستندات: https://platform.neshan.org/docs/api/routing-category/tsp/
+# Endpoint: GET https://api.neshan.org/v3/trip
+
 import logging
 from .config import get_api_key, is_configured, NESHAN_API_BASE, NESHAN_TSP_PATH
 

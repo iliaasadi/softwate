@@ -1,3 +1,8 @@
+# ماتریس فاصله (Distance Matrix) نشان — فاصله و زمان بین چند مبدأ و چند مقصد.
+# مستندات: https://platform.neshan.org/docs/api/routing-category/distance-matrix/
+# با ترافیک: GET https://api.neshan.org/v1/distance-matrix
+# بدون ترافیک: GET https://api.neshan.org/v1/distance-matrix/no-traffic
+
 import logging
 from .config import (
     get_api_key,
