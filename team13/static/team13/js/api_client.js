@@ -92,3 +92,115 @@ async function postJson(endpoint, data) {
   if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + res.statusText);
   return res.json();
 }
+
+
+// Convenience API names — مسیرها نسبی به API_BASE (مثلاً /team13)
+const api = {
+  places: (params) => fetchData('places/', params),
+  placeDetail: (placeId) => fetchData(`places/${placeId}/`),
+  placeRate: (placeId, rating) => postRating(`places/${placeId}/rate/`, { rating }),
+  events: (params) => fetchData('events/', params || {}),
+  eventDetail: (eventId) => fetchData(`events/${eventId}/`),
+  eventRate: (eventId, rating) => postRating(`events/${eventId}/rate/`, { rating }),
+  routes: (sourcePlaceId, destinationPlaceId, travelMode = 'car', options = {}) => {
+    const params = {
+      source_place_id: sourcePlaceId,
+      destination_place_id: destinationPlaceId,
+      travel_mode: travelMode,
+    };
+    if (options.no_traffic) params.no_traffic = '1';
+    if (options.bearing != null && options.bearing >= 0 && options.bearing <= 360) params.bearing = String(options.bearing);
+    if (options.avoid_traffic_zone) params.avoid_traffic_zone = '1';
+    if (options.avoid_odd_even_zone) params.avoid_odd_even_zone = '1';
+    if (options.alternative) params.alternative = '1';
+    return fetchData('routes/', params);
+  },
+  emergency: (lat, lon, limit = 50, radiusKm = 10) => {
+    const params = { lat: String(lat), lon: String(lon), limit: String(limit), radius_km: String(radiusKm) };
+    return fetchData('emergency/', params);
+  },
+  tsp: (waypoints, options = {}) => {
+    const params = {};
+    if (Array.isArray(waypoints) && waypoints.length >= 2) {
+      params.waypoints = waypoints.map(w => (Array.isArray(w) ? w[0] + ',' + w[1] : (w.lat + ',' + w.lng))).join('|');
+    } else if (typeof waypoints === 'string' && waypoints.indexOf('|') !== -1) {
+      params.waypoints = waypoints;
+    } else {
+      return Promise.reject(new Error('waypoints باید آرایه‌ای از حداقل دو نقطه [lat,lng] یا رشتهٔ lat,lng|lat,lng باشد'));
+    }
+    if (options.round_trip !== undefined) params.round_trip = options.round_trip ? '1' : '0';
+    if (options.source_is_any_point !== undefined) params.source_is_any_point = options.source_is_any_point ? '1' : '0';
+    if (options.last_is_any_point !== undefined) params.last_is_any_point = options.last_is_any_point ? '1' : '0';
+    return fetchData('tsp/', params);
+  },
+  distanceMatrix: (origins, destinations, options = {}) => {
+    const toStr = (points) => {
+      if (typeof points === 'string') return points;
+      if (Array.isArray(points) && points.length > 0) {
+        return points.map(p => (Array.isArray(p) ? p[0] + ',' + p[1] : (p.lat + ',' + p.lng))).join('|');
+      }
+      return '';
+    };
+    const o = toStr(origins);
+    const d = toStr(destinations);
+    if (!o || !d) return Promise.reject(new Error('origins و destinations الزامی هستند (آرایه یا رشتهٔ lat,lng|...)'));
+    const params = { origins: o, destinations: d };
+    if (options.type === 'motorcycle') params.type = 'motorcycle';
+    if (options.no_traffic) params.no_traffic = '1';
+    return fetchData('distance-matrix/', params);
+  },
+  isochrone: (lat, lng, options = {}) => {
+    const params = { lat: String(lat), lng: String(lng) };
+    if (options.distance_km != null) params.distance = String(options.distance_km);
+    if (options.time_minutes != null) params.time = String(options.time_minutes);
+    if (options.polygon) params.polygon = '1';
+    if (options.denoise != null && options.denoise >= 0 && options.denoise <= 1) params.denoise = String(options.denoise);
+    if (params.distance === undefined && params.time === undefined) return Promise.reject(new Error('حداقل distance_km یا time_minutes الزامی است'));
+    return fetchData('isochrone/', params);
+  },
+  search: (term, options = {}) => {
+    const params = { q: String(term || '').trim() };
+    if (params.q === '') return Promise.resolve({ count: 0, items: [] });
+    if (options.lat != null && options.lng != null) { params.lat = String(options.lat); params.lng = String(options.lng); }
+    if (options.limit != null) params.limit = String(Math.min(30, Math.max(1, Number(options.limit))));
+    return fetchData('neshan-search/', params);
+  },
+  /**
+   * تبدیل آدرس متنی به مختصات (Geocoding) نشان.
+   * @param {string} address - آدرس مورد نظر
+   * @param {{ province?: string, city?: string, lat?: number, lng?: number, plus?: boolean, extent?: { southWest: {latitude,longitude}, northEast: {latitude,longitude} } }} [options]
+   * @returns {Promise<{ items: Array<{ location: { latitude, longitude }, province, city, neighbourhood, unMatchedTerm }> }>}
+   */
+  geocode: (address, options = {}) => {
+    const params = { address: String(address || '').trim() };
+    if (params.address === '') return Promise.resolve({ items: [] });
+    if (options.province) params.province = String(options.province);
+    if (options.city) params.city = String(options.city);
+    if (options.lat != null && options.lng != null) {
+      params.lat = String(options.lat);
+      params.lng = String(options.lng);
+    }
+    if (options.plus) params.plus = '1';
+    if (options.extent && options.extent.southWest && options.extent.northEast) {
+      const sw = options.extent.southWest;
+      const ne = options.extent.northEast;
+      params.sw_lat = String(sw.latitude);
+      params.sw_lng = String(sw.longitude);
+      params.ne_lat = String(ne.latitude);
+      params.ne_lng = String(ne.longitude);
+    }
+    return fetchData('geocode/', params);
+  },
+  mapMatching: (path) => {
+    let pathStr;
+    if (typeof path === 'string') {
+      pathStr = path.trim();
+      if (pathStr.indexOf('|') === -1) return Promise.reject(new Error('path باید حداقل دو نقطه به صورت lat,lng|lat,lng داشته باشد'));
+    } else if (Array.isArray(path) && path.length >= 2) {
+      pathStr = path.map(p => (Array.isArray(p) ? p[0] + ',' + p[1] : (p.lat + ',' + p.lng))).join('|');
+    } else {
+      return Promise.reject(new Error('path باید رشتهٔ lat,lng|... یا آرایهٔ حداقل دو نقطه باشد'));
+    }
+    return postJson('map-matching/', { path: pathStr });
+  },
+};
