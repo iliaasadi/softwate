@@ -121,7 +121,7 @@ class Image(models.Model):
         return f"{self.target_type}:{self.target_id}"
     
     class Comment(models.Model):
-    """نظر/امتیاز برای یک مکان یا رویداد."""
+        """نظر/امتیاز برای یک مکان یا رویداد."""
 
     class TargetType(models.TextChoices):
         PLACE = "place", "مکان"
@@ -216,7 +216,7 @@ class PlaceAmenity(models.Model):
         return f"{self.place_id} — {self.amenity_name}"
     
     class RouteLog(models.Model):
-    """ثبت سفر/مسیر کاربر (مبدأ، مقصد، نوع حمل‌ونقل)."""
+        """ثبت سفر/مسیر کاربر (مبدأ، مقصد، نوع حمل‌ونقل)."""
 
     class TravelMode(models.TextChoices):
         CAR = "car", "خودرو"
