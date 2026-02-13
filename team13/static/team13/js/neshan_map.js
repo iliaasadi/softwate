@@ -34,7 +34,6 @@
     }
   });
 
-  
   function wrapMap(map) {
     var eventHandlers = { click: [], mousedown: [], mouseup: [], mouseout: [], mouseleave: [], popupopen: [] };
 
@@ -519,4 +518,3 @@
     if (typeof window.team13MapDataReady === 'function') window.team13MapDataReady();
   });
 })();
-
