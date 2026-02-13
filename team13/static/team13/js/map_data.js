@@ -1180,5 +1180,443 @@
     if (btnHospital) btnHospital.addEventListener('click', triggerNearestHospital);
     if (btnFire) btnFire.addEventListener('click', triggerNearestFireStation);
   }
+/**
+   * Emergency: find nearest POI, clear other markers, draw multi-point route, show only that POI marker.
+   * @param {string} category - "بیمارستان" or "آتش نشانی"
+   */
+  function triggerNearestPoi(category) {
+    var map = getMap();
+    setRouteLoading(true);
+    hideRouteInfo();
+    clearTemporaryMapItems(map);
+    if (!window.Team13Api || typeof window.Team13Api.findNearest !== 'function' || typeof window.Team13Api.getRouteFromUserToPoint !== 'function') {
+      setRouteLoading(false);
+      showRouteInfo('خطا: سرویس مسیریابی در دسترس نیست', '');
+      return;
+    }
+    window.Team13Api.findNearest(category)
+      .then(function (poi) {
+        if (!poi || poi.lat == null || poi.lng == null) throw new Error(category === 'بیمارستان' ? 'بیمارستانی یافت نشد' : 'آتش‌نشانی یافت نشد');
+        if (map && window.emergencyPoiMarker && map.hasLayer(window.emergencyPoiMarker)) map.removeLayer(window.emergencyPoiMarker);
+        window.emergencyPoiMarker = L.marker([poi.lat, poi.lng], { icon: createEmergencyPoiIcon() })
+          .bindPopup('<div class="team13-popup"><strong>' + escapeHtml(poi.title || category) + '</strong></div>');
+        window.emergencyPoiMarker.addTo(map);
+        return window.Team13Api.getRouteFromUserToPoint({ lat: poi.lat, lng: poi.lng }, 'driving');
+      })
+      .then(function (r) {
+        setRouteLoading(false);
+        if (typeof window.updateRouteInfoBox === 'function') window.updateRouteInfoBox(r);
+      })
+      .catch(function (err) {
+        setRouteLoading(false);
+        if (window.emergencyPoiMarker && map && map.hasLayer(window.emergencyPoiMarker)) {
+          map.removeLayer(window.emergencyPoiMarker);
+          window.emergencyPoiMarker = null;
+        }
+        showRouteInfo('خطا: ' + (err && err.message ? err.message : (category === 'بیمارستان' ? 'بیمارستان' : 'آتش‌نشانی') + ' یافت نشد'), '');
+        clearTimeout(window._team13EmergencyErrorDismiss);
+        window._team13EmergencyErrorDismiss = setTimeout(function () {
+          var box = document.getElementById('team13-route-info');
+          if (box) {
+            box.classList.add('team13-route-info-fade-out');
+            setTimeout(function () {
+              hideRouteInfo();
+              box.classList.remove('team13-route-info-fade-out');
+            }, 500);
+          }
+        }, 5000);
+      });
+  }
 
+  function triggerNearestHospital() {
+    triggerNearestPoi('بیمارستان');
+  }
+
+  function triggerNearestFireStation() {
+    triggerNearestPoi('آتش نشانی');
+  }
+
+  // --- Start/Destination routing state ---
+  var startCoords = null;
+  var startAddress = '';
+  var destCoords = null;
+  var destAddress = '';
+  var startMarker = null;
+  var destMarker = null;
+  var pickMode = null;
+  var routeMode = 'driving';
+  var reverseGeocodeMarker = null;
+
+  function setRouteMode(mode) {
+    routeMode = (mode || 'driving').toLowerCase();
+    var wrap = document.getElementById('team13-route-mode-wrap');
+    if (wrap) {
+      wrap.querySelectorAll('.team13-route-mode-btn').forEach(function (b) {
+        b.classList.remove('active', 'active-transport');
+        if ((b.getAttribute('data-mode') || '') === routeMode) b.classList.add('active', 'active-transport');
+      });
+    }
+  }
+
+  /** Update crosshair cursor class on map container when any point-selection mode is active. */
+  function updateSelectionActiveCursor() {
+    var active = !!(window.isPlacementMode || pickMode || pickModeDiscovery);
+    var container = document.getElementById('map-container');
+    if (container) {
+      if (active) container.classList.add('selection-active');
+      else container.classList.remove('selection-active');
+    }
+  }
+
+  function setPickMode(mode) {
+    pickMode = mode;
+    updateSelectionActiveCursor();
+    var btnStart = document.getElementById('team13-btn-pick-start');
+    var btnDest = document.getElementById('team13-btn-pick-dest');
+    if (btnStart) btnStart.classList.toggle('active', mode === 'start');
+    if (btnDest) btnDest.classList.toggle('active', mode === 'dest');
+  }
+
+  function syncRouteInputHasText(inputId) {
+    var input = document.getElementById(inputId);
+    if (!input) return;
+    var wrap = input.closest ? input.closest('.team13-input-with-clear') : input.parentNode;
+    if (!wrap || !wrap.classList) return;
+    if ((input.value || '').trim()) wrap.classList.add('team13-has-text');
+    else wrap.classList.remove('team13-has-text');
+  }
+
+  function setStartFromCoords(lat, lng, address) {
+    startCoords = { lat: lat, lng: lng };
+    startAddress = address || '';
+    var input = document.getElementById('team13-input-start');
+    if (input) input.value = startAddress;
+    syncRouteInputHasText('team13-input-start');
+    var map = getMap();
+    if (map && startMarker) map.removeLayer(startMarker);
+    startMarker = L.marker([lat, lng], { icon: createStartMarkerIcon(), draggable: true })
+      .on('dragend', function () {
+        var pos = startMarker.getLatLng();
+        startCoords = { lat: pos.lat, lng: pos.lng };
+        window.Team13Api.reverseGeocode(pos.lat, pos.lng).then(function (data) {
+          startAddress = (data && (data.address || data.address_compact || data.postal_address)) || '';
+          var inp = document.getElementById('team13-input-start');
+          if (inp) inp.value = startAddress;
+          syncRouteInputHasText('team13-input-start');
+          drawRouteFromToIfBoth();
+        });
+      })
+      .addTo(map);
+    drawRouteFromToIfBoth();
+  }
+
+  function setDestFromCoords(lat, lng, address) {
+    destCoords = { lat: lat, lng: lng };
+    destAddress = address || '';
+    var input = document.getElementById('team13-input-dest');
+    if (input) input.value = destAddress;
+    syncRouteInputHasText('team13-input-dest');
+    var topInput = document.getElementById('team13-search-input');
+    if (topInput) topInput.value = destAddress;
+    var map = getMap();
+    if (map && destMarker) map.removeLayer(destMarker);
+    destMarker = L.marker([lat, lng], { icon: createDestMarkerIcon(), draggable: true })
+      .on('dragend', function () {
+        var pos = destMarker.getLatLng();
+        destCoords = { lat: pos.lat, lng: pos.lng };
+        window.Team13Api.reverseGeocode(pos.lat, pos.lng).then(function (data) {
+          destAddress = (data && (data.address || data.address_compact || data.postal_address)) || '';
+          var inp = document.getElementById('team13-input-dest');
+          if (inp) inp.value = destAddress;
+          var top = document.getElementById('team13-search-input');
+          if (top) top.value = destAddress;
+          syncRouteInputHasText('team13-input-dest');
+          drawRouteFromToIfBoth();
+        });
+      })
+      .addTo(map);
+    drawRouteFromToIfBoth();
+  }
+
+  function drawRouteFromToIfBoth() {
+    if (!startCoords || !destCoords || !window.Team13Api || typeof window.Team13Api.getRouteFromTo !== 'function') return null;
+    var clearWrap = document.getElementById('team13-clear-route-wrap');
+    var clearBtn = document.getElementById('team13-btn-clear-path');
+    if (clearWrap) clearWrap.style.display = '';
+    else if (clearBtn) clearBtn.style.display = 'block';
+    return window.Team13Api.getRouteFromTo(startCoords, destCoords, routeMode)
+      .then(function (r) {
+        if (typeof window.updateRouteInfoBox === 'function') window.updateRouteInfoBox(r);
+        if (typeof window.Team13MapCleanup === 'function') window.Team13MapCleanup();
+        return r;
+      })
+      .catch(function (err) {
+        if (typeof window.updateRouteInfoBox === 'function') window.updateRouteInfoBox(null);
+        if (typeof window.showToast === 'function') window.showToast('خطا: ' + (err && err.message ? err.message : 'مسیریابی ناموفق'));
+        throw err;
+      });
+  }
+
+  function clearRouteLine() {
+    var map = getMap();
+    [window.currentPath, window.routeLayer, window.currentRoute, window.team13RouteLine].forEach(function (layer) {
+      if (layer && map && map.hasLayer(layer)) map.removeLayer(layer);
+    });
+    window.currentPath = null;
+    window.routeLayer = null;
+    window.currentRoute = null;
+    window.team13RouteLine = null;
+    hideRouteInfo();
+    if (typeof window.updateRouteInfoBox === 'function') window.updateRouteInfoBox(null);
+    var clearWrap = document.getElementById('team13-clear-route-wrap');
+    var clearBtn = document.getElementById('team13-btn-clear-path');
+    if (clearWrap) clearWrap.style.display = 'none';
+    else if (clearBtn) clearBtn.style.display = 'none';
+  }
+
+  function clearStart() {
+    startCoords = null;
+    startAddress = '';
+    var input = document.getElementById('team13-input-start');
+    if (input) input.value = '';
+    syncRouteInputHasText('team13-input-start');
+    var map = getMap();
+    if (startMarker && map && map.hasLayer(startMarker)) {
+      map.removeLayer(startMarker);
+    }
+    startMarker = null;
+    clearRouteLine();
+  }
+
+  function clearDest() {
+    destCoords = null;
+    destAddress = '';
+    var input = document.getElementById('team13-input-dest');
+    if (input) input.value = '';
+    syncRouteInputHasText('team13-input-dest');
+    var topInput = document.getElementById('team13-search-input');
+    if (topInput) topInput.value = '';
+    var map = getMap();
+    if (destMarker && map && map.hasLayer(destMarker)) {
+      map.removeLayer(destMarker);
+    }
+    destMarker = null;
+    clearRouteLine();
+  }
+
+  function swapStartDest() {
+    var sC = startCoords;
+    var sA = startAddress;
+    var dC = destCoords;
+    var dA = destAddress;
+    startCoords = dC;
+    startAddress = dA || '';
+    destCoords = sC;
+    destAddress = sA || '';
+    var inputStart = document.getElementById('team13-input-start');
+    var inputDest = document.getElementById('team13-input-dest');
+    var topInput = document.getElementById('team13-search-input');
+    if (inputStart) inputStart.value = startAddress;
+    if (inputDest) inputDest.value = destAddress;
+    if (topInput) topInput.value = destAddress;
+    var map = getMap();
+    if (startMarker && map && map.hasLayer(startMarker)) map.removeLayer(startMarker);
+    if (destMarker && map && map.hasLayer(destMarker)) map.removeLayer(destMarker);
+    startMarker = null;
+    destMarker = null;
+    if (startCoords && map) {
+      startMarker = L.marker([startCoords.lat, startCoords.lng], { icon: createStartMarkerIcon(), draggable: true })
+        .on('dragend', function () {
+          var pos = startMarker.getLatLng();
+          startCoords = { lat: pos.lat, lng: pos.lng };
+          window.Team13Api.reverseGeocode(pos.lat, pos.lng).then(function (data) {
+            startAddress = (data && (data.address || data.address_compact || data.postal_address)) || '';
+            var inp = document.getElementById('team13-input-start');
+            if (inp) inp.value = startAddress;
+            drawRouteFromToIfBoth();
+          });
+        })
+        .addTo(map);
+    }
+    if (destCoords && map) {
+      destMarker = L.marker([destCoords.lat, destCoords.lng], { icon: createDestMarkerIcon(), draggable: true })
+        .on('dragend', function () {
+          var pos = destMarker.getLatLng();
+          destCoords = { lat: pos.lat, lng: pos.lng };
+          window.Team13Api.reverseGeocode(pos.lat, pos.lng).then(function (data) {
+            destAddress = (data && (data.address || data.address_compact || data.postal_address)) || '';
+            var inp = document.getElementById('team13-input-dest');
+            if (inp) inp.value = destAddress;
+            var top = document.getElementById('team13-search-input');
+            if (top) top.value = destAddress;
+            drawRouteFromToIfBoth();
+          });
+        })
+        .addTo(map);
+    }
+    drawRouteFromToIfBoth();
+  }
+
+  function initStartDestUI() {
+    var inputStart = document.getElementById('team13-input-start');
+    var inputDest = document.getElementById('team13-input-dest');
+    var resultsStart = document.getElementById('team13-start-results');
+    var resultsDest = document.getElementById('team13-dest-results');
+    var btnPickStart = document.getElementById('team13-btn-pick-start');
+    var btnPickDest = document.getElementById('team13-btn-pick-dest');
+    var btnMyLocation = document.getElementById('team13-btn-my-location');
+    var modeWrap = document.getElementById('team13-route-mode-wrap');
+    if (!inputStart || !inputDest) return;
+
+    function bindAutocomplete(inputEl, resultsEl, setter) {
+      if (!inputEl || !resultsEl) return;
+      var debounce;
+      inputEl.addEventListener('input', function () {
+        clearTimeout(debounce);
+        var q = (inputEl.value || '').trim();
+        if (q.length < 2) { resultsEl.hidden = true; resultsEl.innerHTML = ''; return; }
+        debounce = setTimeout(function () {
+          var map = getMap();
+          var lat, lng;
+          if (map && map.getCenter) { var c = map.getCenter(); lat = c.lat; lng = c.lng; }
+          mapirAutocomplete(q, lat, lng).then(function (items) {
+            resultsEl.innerHTML = '';
+            items.forEach(function (item) {
+              var title = (item.title || item.address || item.name || item.text || '').trim();
+              var ll = getItemLatLng(item);
+              if (!ll) return;
+              var div = document.createElement('div');
+              div.className = 'team13-search-result-item';
+              div.textContent = title;
+              div.dataset.lat = ll.lat;
+              div.dataset.lng = ll.lng;
+              div.dataset.title = title;
+              div.addEventListener('click', function () {
+                setter(ll.lat, ll.lng, title);
+                resultsEl.hidden = true;
+                resultsEl.innerHTML = '';
+              });
+              resultsEl.appendChild(div);
+            });
+            resultsEl.hidden = items.length === 0;
+          });
+        }, 300);
+      });
+      inputEl.addEventListener('blur', function () {
+        setTimeout(function () { resultsEl.hidden = true; }, 200);
+      });
+    }
+
+    bindAutocomplete(inputStart, resultsStart, setStartFromCoords);
+    bindAutocomplete(inputDest, resultsDest, setDestFromCoords);
+
+    function syncClearHasText(inputEl) {
+      var wrap = inputEl && inputEl.closest ? inputEl.closest('.team13-input-with-clear') : (inputEl && inputEl.parentNode);
+      if (!wrap) return;
+      if ((inputEl.value || '').trim()) wrap.classList.add('team13-has-text');
+      else wrap.classList.remove('team13-has-text');
+    }
+    if (inputStart) {
+      inputStart.addEventListener('input', function () { syncClearHasText(inputStart); });
+      inputStart.addEventListener('change', function () { syncClearHasText(inputStart); });
+      syncClearHasText(inputStart);
+    }
+    if (inputDest) {
+      inputDest.addEventListener('input', function () { syncClearHasText(inputDest); });
+      inputDest.addEventListener('change', function () { syncClearHasText(inputDest); });
+      syncClearHasText(inputDest);
+    }
+
+    if (btnPickStart) {
+      btnPickStart.addEventListener('click', function () {
+        setPickMode(pickMode === 'start' ? null : 'start');
+      });
+    }
+    if (btnPickDest) {
+      btnPickDest.addEventListener('click', function () {
+        setPickMode(pickMode === 'dest' ? null : 'dest');
+      });
+    }
+    if (btnMyLocation) {
+      btnMyLocation.addEventListener('click', function () {
+        if (!navigator.geolocation) {
+          if (window.showToast) window.showToast('مرورگر از موقعیت جغرافیایی پشتیبانی نمی‌کند');
+          return;
+        }
+        if (window.showToast) window.showToast('در حال دریافت موقعیت فعلی...');
+        navigator.geolocation.getCurrentPosition(
+          function (pos) {
+            var lat = pos.coords.latitude;
+            var lng = pos.coords.longitude;
+            window.Team13Api.reverseGeocode(lat, lng).then(function (data) {
+              var addr = (data && (data.address || data.address_compact || data.postal_address)) || '';
+              setStartFromCoords(lat, lng, addr);
+              if (window.showToast) window.showToast('مبدا روی موقعیت شما تنظیم شد');
+            }).catch(function () {
+              setStartFromCoords(lat, lng, 'موقعیت من');
+              if (window.showToast) window.showToast('مبدا روی موقعیت شما تنظیم شد');
+            });
+          },
+          function (e) {
+            var msg = e.code === 1 ? 'دسترسی به موقعیت رد شد. در تنظیمات مرورگر اجازهٔ مکان را فعال کنید.' : e.code === 2 ? 'موقعیت در دسترس نیست.' : e.code === 3 ? 'زمان درخواست تمام شد.' : 'دسترسی به موقعیت امکان‌پذیر نیست';
+            if (window.showToast) window.showToast(msg);
+          },
+          { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+        );
+      });
+    }
+    if (modeWrap) {
+      modeWrap.querySelectorAll('.team13-route-mode-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          routeMode = this.getAttribute('data-mode') || 'driving';
+          modeWrap.querySelectorAll('.team13-route-mode-btn').forEach(function (b) {
+            b.classList.remove('active', 'active-transport');
+          });
+          this.classList.add('active', 'active-transport');
+          drawRouteFromToIfBoth();
+          if (typeof window.Team13CloseSidebar === 'function') window.Team13CloseSidebar();
+        });
+      });
+    }
+
+    var btnClearStart = document.getElementById('team13-clear-start');
+    var btnClearDest = document.getElementById('team13-clear-dest');
+    var btnSwap = document.getElementById('team13-btn-swap-route');
+    if (btnClearStart) btnClearStart.addEventListener('click', clearStart);
+    if (btnClearDest) btnClearDest.addEventListener('click', clearDest);
+    if (btnSwap) {
+      btnSwap.addEventListener('click', function () {
+        swapStartDest();
+        btnSwap.classList.toggle('team13-swap-route-rotated');
+      });
+    }
+    var btnCalcRoute = document.getElementById('team13-btn-calc-route');
+    var calcRouteText = btnCalcRoute ? btnCalcRoute.querySelector('.team13-btn-calc-route-text') : null;
+    var calcRouteSpinner = btnCalcRoute ? btnCalcRoute.querySelector('.team13-btn-calc-route-spinner') : null;
+    if (btnCalcRoute) {
+      btnCalcRoute.addEventListener('click', function () {
+        if (!startCoords || !destCoords) {
+          if (window.showToast) window.showToast('مبدا و مقصد را انتخاب کنید.');
+          return;
+        }
+        if (btnCalcRoute.disabled) return;
+        btnCalcRoute.disabled = true;
+        btnCalcRoute.classList.add('team13-btn-calc-route-loading');
+        if (calcRouteText) calcRouteText.textContent = 'در حال محاسبه...';
+        if (calcRouteSpinner) calcRouteSpinner.hidden = false;
+        var p = drawRouteFromToIfBoth();
+        function done() {
+          btnCalcRoute.disabled = false;
+          btnCalcRoute.classList.remove('team13-btn-calc-route-loading');
+          if (calcRouteText) calcRouteText.textContent = 'مسیریابی';
+          if (calcRouteSpinner) calcRouteSpinner.hidden = true;
+        }
+        if (p && typeof p.then === 'function') {
+          p.then(done).catch(done);
+        } else {
+          setTimeout(done, 1500);
+        }
+      });
+    }
+  }
   }})
