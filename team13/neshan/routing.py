@@ -78,3 +78,61 @@ def _build_direction_params(lat_origin, lng_origin, lat_dest, lng_dest, vehicle_
         params["bearing"] = int(bearing)
     return params
 
+
+def fetch_route_eta(lng_origin, lat_origin, lng_dest, lat_dest, vehicle_type=VEHICLE_CAR,
+                    waypoints=None, avoid_traffic_zone=False, avoid_odd_even_zone=False, alternative=False, bearing=None):
+    """
+    فاصله (کیلومتر)، زمان (ثانیه) و geometry مسیر از سرویس مسیریابی با ترافیک نشان.
+    خروجی: (distance_km, duration_seconds, route_geometry). نوع وسیله: car | motorcycle.
+    """
+    if not is_configured():
+        return None, None, None
+    api_key = get_api_key()
+    if vehicle_type not in (VEHICLE_CAR, VEHICLE_MOTORCYCLE):
+        vehicle_type = VEHICLE_CAR
+    params = _build_direction_params(
+        lat_origin, lng_origin, lat_dest, lng_dest, vehicle_type,
+        waypoints=waypoints, avoid_traffic_zone=avoid_traffic_zone,
+        avoid_odd_even_zone=avoid_odd_even_zone, alternative=alternative, bearing=bearing,
+    )
+    return _request_direction(NESHAN_DIRECTION_PATH, params, api_key)
+
+
+def fetch_route_eta_no_traffic(lng_origin, lat_origin, lng_dest, lat_dest,
+                               waypoints=None, avoid_traffic_zone=False, avoid_odd_even_zone=False,
+                               alternative=False, bearing=None):
+    """
+    مسیریابی بدون ترافیک (No Traffic Routing API) — فقط خودرو.
+    مستندات: https://platform.neshan.org/docs/api/routing-category/noTraffic-routing-api/
+    Endpoint: GET https://api.neshan.org/v4/direction/no-traffic
+    خروجی: (distance_km, duration_seconds, route_geometry).
+    """
+    if not is_configured():
+        return None, None, None
+    api_key = get_api_key()
+    params = _build_direction_params(
+        lat_origin, lng_origin, lat_dest, lng_dest, VEHICLE_CAR,
+        waypoints=waypoints, avoid_traffic_zone=avoid_traffic_zone,
+        avoid_odd_even_zone=avoid_odd_even_zone, alternative=alternative, bearing=bearing,
+    )
+    return _request_direction(NESHAN_DIRECTION_NO_TRAFFIC_PATH, params, api_key)
+
+
+def fetch_route_eta_pedestrian(lng_origin, lat_origin, lng_dest, lat_dest,
+                               waypoints=None, alternative=False, bearing=None):
+    """
+    مسیریابی عابر پیاده (Pedestrian Routing API) — همان endpoint با type=pedestrian.
+    مستندات: https://platform.neshan.org/docs/api/routing-category/routing_pedestrian/
+    Endpoint: GET https://api.neshan.org/v4/direction
+    پارامترها: type=pedestrian، origin، destination؛ اختیاری: waypoints، alternative، bearing.
+    خروجی: (distance_km, duration_seconds, route_geometry).
+    """
+    if not is_configured():
+        return None, None, None
+    api_key = get_api_key()
+    params = _build_direction_params(
+        lat_origin, lng_origin, lat_dest, lng_dest, VEHICLE_PEDESTRIAN,
+        waypoints=waypoints, avoid_traffic_zone=False, avoid_odd_even_zone=False,
+        alternative=alternative, bearing=bearing,
+    )
+    return _request_direction(NESHAN_DIRECTION_PATH, params, api_key)
